@@ -180,10 +180,18 @@ function renderActions() {
 
   if (game.phase === 'draw') {
     const check = canTakePile(game);
+    // Adding the top card to a meld your side already has needs nothing from
+    // hand, so only the other routes require a selection.
+    const needsSelection = check.mode !== 'add-to-meld';
+    const short = needsSelection && selected.size === 0;
     bar.replaceChildren(
-      button('Draw a card', { id: 'act-draw', className: 'primary' }),
-      button(selected.size ? 'Take the pile' : 'Take the pile (select cards first)',
-        { id: 'act-take', className: 'gold', disabled: !check.ok || selected.size === 0 }),
+      button('Draw a card', { id: 'act-draw', className: 'primary', disabled: staged.length > 0 }),
+      // Opening on the pile often needs a second meld alongside it to reach
+      // the minimum, so groups can be stacked up before taking.
+      button('Group selected', { id: 'act-group', disabled: selected.size === 0 }),
+      button('Take back', { id: 'act-clear', disabled: staged.length === 0 }),
+      button(short ? 'Take the pile (select cards first)' : 'Take the pile',
+        { id: 'act-take', className: 'gold', disabled: !check.ok || short }),
     );
     return;
   }
@@ -324,10 +332,19 @@ function onAction(event) {
       if (attempt({ type: 'draw' })) return afterMove();
       return render();
 
-    case 'act-take':
-      // The top card is melded with the selection as one group.
-      if (attempt({ type: 'takePile', groups: [[...selected, topDiscard(game).id]] })) return afterMove();
+    case 'act-take': {
+      // The top card is melded with the selection as one group. With nothing
+      // selected it must be joining a meld already on the table, so name it.
+      // Any groups already staged go down in the same move, which is what
+      // lets an opening meld reach its minimum on the way in.
+      const top = topDiscard(game);
+      const topGroup = selected.size === 0
+        ? { to: top.rank, cards: [top.id] }
+        : [...selected, top.id];
+      const groups = [...staged.map((g) => ({ to: g.to, cards: g.ids })), topGroup];
+      if (attempt({ type: 'takePile', groups })) return afterMove();
       return render();
+    }
 
     case 'act-group':
       staged.push({ to: null, ids: [...selected] });

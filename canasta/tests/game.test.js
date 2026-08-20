@@ -271,6 +271,41 @@ test('taking the pile still has to clear the opening minimum', () => {
     'three eights is 30');
 });
 
+test('a second meld can ride along to clear the opening minimum', () => {
+  const top = c(8, 'H');
+  const pair = [c(8, 'S'), c(8, 'D')];
+  const kings = [c(13, 'S'), c(13, 'H'), c(13, 'D')];
+  const s = rig((x) => {
+    x.frozen = false;
+    x.discard = [c(9, 'H'), c(5, 'C'), top];
+    x.players[0].hand = [...pair, ...kings, c(9, 'S')];
+  });
+  // Three eights alone is 30, which is short. The kings make up the rest.
+  const after = applyMove(s, {
+    type: 'takePile',
+    groups: [ids(...kings), ids(top, ...pair)],
+  });
+  eq(after.teams[0].melds[8].length, 3, 'the eights went down');
+  eq(after.teams[0].melds[13].length, 3, 'and the kings alongside them');
+  eq(after.discard.length, 0, 'the pile was taken');
+});
+
+test('the pile can be taken by adding the top card to a meld already down', () => {
+  const top = c(8, 'H');
+  const s = rig((x) => {
+    x.frozen = false;
+    x.discard = [c(9, 'H'), c(5, 'C'), top];
+    x.teams[0].melds[8] = [c(8, 'S'), c(8, 'D'), c(8, 'C')];
+    x.teams[0].hasMelded = true;
+    x.players[0].hand = [c(4, 'S'), c(9, 'S')];
+  });
+  eq(canTakePile(s).mode, 'add-to-meld');
+  // Nothing is spent from hand: the top card simply joins the eights.
+  const after = applyMove(s, { type: 'takePile', groups: [{ to: 8, cards: ids(top) }] });
+  eq(after.teams[0].melds[8].length, 4);
+  eq(after.players[0].hand.length, 4, 'two cards held plus the two from the pile');
+});
+
 test('the top card of the pile must be melded straight away', () => {
   const top = c(ACE, 'H');
   const kings = [c(13, 'S'), c(13, 'H'), c(13, 'D'), c(13, 'C')];
