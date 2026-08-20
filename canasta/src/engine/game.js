@@ -45,6 +45,7 @@ export function createGame({
   config = {}, seed = Date.now(),
   players = ['North', 'East', 'South', 'West'],
   scores = [0, 0],
+  firstPlayer = 0,          // rotates each hand so the lead moves round the table
 } = {}) {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   if (players.length !== 4) throw new Error('Canasta seats exactly four players.');
@@ -68,7 +69,7 @@ export function createGame({
   const state = {
     config: cfg, seed, players: seats, teams,
     stock, discard: [], frozen: false,
-    turn: 0, phase: 'draw',
+    turn: firstPlayer % 4, phase: 'draw',
     tookPileThisTurn: false,
     meldedThisTurn: false,
     handOver: false, outPlayer: null, gameOver: false,

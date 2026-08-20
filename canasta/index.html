@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Canasta — Fifty Years</title>
+<meta name="description" content="Four-player partnership Canasta. Plays in any browser, installs to your phone.">
+<meta name="theme-color" content="#123c2c">
+
+<link rel="manifest" href="./app.webmanifest">
+<link rel="icon" href="./assets/icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Canasta 50">
+
+<style>
+  :root {
+    --felt: #14513a;
+    --felt-dark: #0b3325;
+    --ink: #b0202a;
+    --paper: #fdfcf8;
+    --gold: #d8a53a;
+    --gold-dim: #9a7526;
+    --line: rgba(255,255,255,.15);
+    --text: #eef3f0;
+    --muted: #9fbcae;
+    --card-w: clamp(34px, 9.2vw, 52px);
+    --card-h: calc(var(--card-w) * 1.42);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0; min-height: 100dvh;
+    padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+             max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    background: radial-gradient(ellipse at 50% -10%, var(--felt) 0%, var(--felt-dark) 100%);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 820px; margin: 0 auto; }
+  .screen[hidden] { display: none; }
+
+  h1 {
+    font: 700 clamp(26px, 8vw, 42px)/1.1 Georgia, "Times New Roman", serif;
+    margin: 0; text-align: center; letter-spacing: .01em;
+  }
+  .flourish { text-align: center; color: var(--gold); font: 400 14px/1.6 Georgia, serif; letter-spacing: .18em; text-transform: uppercase; margin: 4px 0 22px; }
+
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input[type=text] {
+    width: 100%; font: inherit; padding: 10px 12px; border-radius: 9px;
+    border: 1px solid var(--line); background: rgba(0,0,0,.25); color: var(--text);
+  }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .team-label { font-size: 12px; color: var(--gold); letter-spacing: .1em; text-transform: uppercase; margin: 18px 0 2px; }
+
+  button {
+    font: inherit; font-weight: 600; padding: 11px 16px; min-height: 46px;
+    border-radius: 10px; border: 1px solid var(--line);
+    background: rgba(255,255,255,.08); color: var(--text); cursor: pointer;
+  }
+  button.primary { background: var(--paper); color: #16241d; border-color: transparent; }
+  button.gold { background: var(--gold); color: #2b1f06; border-color: transparent; }
+  button:disabled { opacity: .35; cursor: default; }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  .wide { width: 100%; }
+
+  /* ------------------------------------------------------------- cards */
+  .card {
+    width: var(--card-w); height: var(--card-h);
+    border-radius: calc(var(--card-w)*.13);
+    background: var(--paper); color: #16241d;
+    box-shadow: 0 2px 5px rgba(0,0,0,.35);
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: calc(var(--card-w)*.10);
+    font-weight: 700; line-height: 1; flex: none;
+  }
+  .card.red { color: var(--ink); }
+  .card.wild { outline: 2px solid var(--gold); outline-offset: -2px; }
+  .card.selectable { cursor: pointer; }
+  .card.selected { transform: translateY(-9px); box-shadow: 0 0 0 3px #fff, 0 7px 14px rgba(0,0,0,.5); }
+  .card .rank { font-size: calc(var(--card-w)*.32); }
+  .card .suit { font-size: calc(var(--card-w)*.34); align-self: flex-end; }
+
+  .card.back {
+    background:
+      repeating-linear-gradient(45deg, rgba(216,165,58,.10) 0 6px, transparent 6px 12px),
+      linear-gradient(160deg, #1d5c44, #0f3427);
+    border: 1px solid rgba(216,165,58,.5);
+    color: var(--gold); align-items: center; justify-content: center;
+    font-family: Georgia, serif; text-align: center; gap: 1px;
+  }
+  .card.back .fifty { font-size: calc(var(--card-w)*.44); line-height: .95; }
+  .card.back .years { font-size: calc(var(--card-w)*.13); letter-spacing: .1em; text-transform: uppercase; }
+
+  .card.slot {
+    background: rgba(0,0,0,.25); border: 1px dashed var(--line); box-shadow: none;
+    align-items: center; justify-content: center; color: var(--muted);
+    font-size: calc(var(--card-w)*.24); font-weight: 600;
+  }
+
+  /* ------------------------------------------------------------- board */
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-start; }
+
+  .scoreboard { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .score {
+    background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+  }
+  .score.active { border-color: var(--gold); background: rgba(216,165,58,.14); }
+  .score b { display: block; font-size: 20px; }
+  .score span { font-size: 11px; color: var(--muted); display: block; }
+
+  .panel { background: rgba(0,0,0,.18); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 12px; }
+  .panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin: 0 0 8px; }
+
+  .meld {
+    display: flex; align-items: center; gap: 6px; padding: 5px 9px;
+    background: rgba(255,255,255,.07); border: 1px solid var(--line); border-radius: 9px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .meld.canasta { border-color: var(--gold); background: rgba(216,165,58,.18); }
+  .meld .count { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .meld.droppable { outline: 2px solid var(--gold); }
+
+  .center { display: flex; gap: 14px; align-items: flex-start; }
+  .stack { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .stack .caption { font-size: 11px; color: var(--muted); }
+
+  .badge {
+    display: inline-block; font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    background: #6d1f26; color: #ffd9dc; border-radius: 999px; padding: 2px 8px; font-weight: 700;
+  }
+
+  .hand { display: flex; gap: 5px; flex-wrap: wrap; padding-top: 9px; }
+
+  .tray { display: flex; gap: 6px; flex-wrap: wrap; min-height: 34px; align-items: center; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+    background: rgba(216,165,58,.18); border: 1px solid var(--gold-dim); border-radius: 999px; padding: 5px 10px;
+  }
+  .chip button { min-height: 0; padding: 0 4px; border: 0; background: none; color: var(--gold); font-size: 15px; }
+
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .actions button { flex: 1 1 auto; }
+
+  .hint {
+    position: sticky; bottom: 0; margin-top: 12px;
+    background: rgba(11,51,37,.96); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 13px; font-size: 14px;
+  }
+  .hint.error { border-color: #8d3038; background: rgba(109,31,38,.95); }
+
+  .centered { text-align: center; padding: 40px 12px; }
+  .centered h2 { font: 700 26px/1.2 Georgia, serif; margin: 0 0 8px; }
+  .centered p { color: var(--muted); margin: 0 0 20px; }
+
+  table.scores { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px; }
+  table.scores th, table.scores td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: right; }
+  table.scores th:first-child, table.scores td:first-child { text-align: left; color: var(--muted); }
+  table.scores tr.total td { font-weight: 700; border-bottom: 0; }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 22px 0 6px; }
+  a { color: #cfe3d8; }
+</style>
+</head>
+<body>
+<main>
+
+  <!-- ---------------------------------------------------------- title -->
+  <section id="title" class="screen">
+    <h1>Canasta</h1>
+    <p class="flourish">Fifty Years</p>
+
+    <div class="team-label">Partnership one</div>
+    <div class="pair">
+      <div><label for="p0">Player</label><input type="text" id="p0" placeholder="North" autocomplete="off"></div>
+      <div><label for="p2">Partner</label><input type="text" id="p2" placeholder="South" autocomplete="off"></div>
+    </div>
+
+    <div class="team-label">Partnership two</div>
+    <div class="pair">
+      <div><label for="p1">Player</label><input type="text" id="p1" placeholder="East" autocomplete="off"></div>
+      <div><label for="p3">Partner</label><input type="text" id="p3" placeholder="West" autocomplete="off"></div>
+    </div>
+
+    <p style="color:var(--muted); font-size:13px; margin:18px 0 12px">
+      Partners sit opposite each other. Pass the phone around the table — each
+      player sees a hand-over screen before their turn.
+    </p>
+    <button class="primary wide" id="start">Deal the first hand</button>
+    <footer>Game to 5000 · <a href="./tests/">engine tests</a></footer>
+  </section>
+
+  <!-- ---------------------------------------------------------- pass -->
+  <section id="pass" class="screen" hidden>
+    <div class="centered">
+      <div class="card back" style="margin:0 auto 22px; --card-w:96px">
+        <span class="fifty">50</span><span class="years">years</span>
+      </div>
+      <h2 id="pass-text">Pass the phone</h2>
+      <p>Nobody else should be looking.</p>
+      <button class="primary wide" id="ready">I have it</button>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- board -->
+  <section id="board" class="screen" hidden>
+    <div class="scoreboard" id="scoreboard"></div>
+
+    <div class="panel">
+      <h2>On the table</h2>
+      <div id="melds-us" class="row" style="margin-bottom:8px"></div>
+      <div id="melds-them" class="row"></div>
+    </div>
+
+    <div class="panel">
+      <div class="center">
+        <div class="stack">
+          <div class="card back"><span class="fifty">50</span><span class="years">years</span></div>
+          <span class="caption" id="stock-count"></span>
+        </div>
+        <div class="stack">
+          <div id="discard-top"></div>
+          <span class="caption" id="discard-count"></span>
+        </div>
+        <div style="flex:1">
+          <div id="pile-state"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 id="hand-title">Your hand</h2>
+      <div class="hand" id="hand"></div>
+    </div>
+
+    <div class="panel" id="staging">
+      <h2 id="staging-title">Ready to lay down</h2>
+      <div class="tray" id="tray"></div>
+    </div>
+
+    <div class="actions" id="actions"></div>
+    <p class="hint" id="hint"></p>
+  </section>
+
+  <!-- ---------------------------------------------------------- hand over -->
+  <section id="handover" class="screen" hidden>
+    <div class="centered">
+      <h2 id="handover-title">Hand complete</h2>
+      <table class="scores" id="hand-scores"></table>
+      <button class="primary wide" id="next-hand">Deal the next hand</button>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- game over -->
+  <section id="gameover" class="screen" hidden>
+    <div class="centered">
+      <h2 id="winner-text">Game over</h2>
+      <table class="scores" id="final-scores"></table>
+      <button class="primary wide" id="new-game">New game</button>
+    </div>
+  </section>
+
+</main>
+
+<script type="module">
+  import { boot } from './src/ui/board.js';
+  boot();
+  if ('serviceWorker' in navigator) {
+    addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  }
+</script>
+</body>
+</html>
