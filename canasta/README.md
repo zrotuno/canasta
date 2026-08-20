@@ -37,6 +37,14 @@ A pile freezes when a wild card is discarded onto it, or when a wild or red
 three is buried in it at the start of the hand. Taking the pile clears the
 freeze.
 
+**Running out of stock.** When the stock is gone the hand carries on across
+the discard pile alone. The player to move must take it, and the hand ends the
+moment somebody cannot, or declines. A top card that fits a meld your side
+already has makes the pile compulsory: you may not decline it.
+
+**Asking to go out.** You may ask your partner once per turn, after drawing.
+The answer binds you.
+
 **Going out.** Your partnership needs at least one canasta. Going out pays 100,
 or 200 if you laid your whole hand down in a single turn having melded nothing
 before. Cards left in hand are deducted.
@@ -68,8 +76,10 @@ src/ui/board.js       the four-player board
 tests/                browser-run suites
 ```
 
-## Not yet built
+## Deliberately not enforced
 
-- Asking your partner for permission to go out
-- Any rule where the stock running out keeps play going on the discard pile;
-  at present the hand simply ends
+If your partner says yes, the rules say you must go out. The engine records
+the yes and the board says so plainly, but it will not refuse your discard:
+a player who asks, is told yes, and then finds they cannot actually go out
+would otherwise be stuck with no legal move at all. A refusal, which is the
+half that comes up in real play, is enforced strictly.

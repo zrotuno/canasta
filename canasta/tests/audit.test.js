@@ -55,3 +55,107 @@ test('black threes can be melded when going out with a final discard', () => {
   ok(out.handOver, 'discarding the last card goes out');
   eq(out.outPlayer, 0);
 });
+
+// ------------------------------------------------ the stock running out
+
+// Rigs a state with an empty stock, a chosen top card and a chosen hand.
+function stockGone({ top, hand, melds = null }) {
+  const s = createGame({ seed: 3 });
+  s.stock = [];
+  s.discard = [c(9, 'C'), top];
+  s.frozen = false;
+  s.players[0].hand = hand;
+  s.turn = 0;
+  s.phase = 'draw';
+  if (melds) { s.teams[0].melds = melds; s.teams[0].hasMelded = true; }
+  return s;
+}
+
+test('with the stock gone and the pile useless, the hand ends and nobody is out', () => {
+  const s = stockGone({ top: c(9, 'D'), hand: [c(5, 'S'), c(12, 'H')] });
+  const next = applyMove(s, { type: 'draw' });
+  ok(next.handOver, 'the hand ended');
+  eq(next.outPlayer, null, 'nobody went out');
+});
+
+test('with the stock gone, a player who can take the pile may not just draw', () => {
+  const s = stockGone({ top: c(9, 'D'), hand: [c(9, 'S'), c(9, 'H'), c(12, 'H')] });
+  let message = '';
+  try { applyMove(s, { type: 'draw' }); } catch (e) { message = e.message; }
+  ok(message.includes('stock is gone'), `expected the stock message, got: ${message}`);
+});
+
+test('with the stock gone, passing up a takeable pile ends the hand', () => {
+  const s = stockGone({ top: c(9, 'D'), hand: [c(9, 'S'), c(9, 'H'), c(12, 'H')] });
+  const next = applyMove(s, { type: 'pass' });
+  ok(next.handOver, 'the hand ended');
+  eq(next.outPlayer, null);
+});
+
+test('with the stock gone, a pile that fits your own meld is compulsory', () => {
+  const s = stockGone({
+    top: c(9, 'D'),
+    hand: [c(12, 'H'), c(4, 'S')],
+    melds: { 9: [c(9, 'S'), c(9, 'H'), c(9, 'C')] },
+  });
+  let message = '';
+  try { applyMove(s, { type: 'pass' }); } catch (e) { message = e.message; }
+  ok(message.includes('compulsory'), `expected a refusal to pass, got: ${message}`);
+});
+
+test('while the stock holds cards, passing is not a legal move', () => {
+  const s = createGame({ seed: 4 });
+  let message = '';
+  try { applyMove(s, { type: 'pass' }); } catch (e) { message = e.message; }
+  ok(message.includes('stock still has cards'), `got: ${message}`);
+});
+
+// ------------------------------------------------ asking to go out
+
+// A player one card from out, whose side already has a canasta.
+function readyToGoOut() {
+  const s = createGame({ seed: 5 });
+  const last = c(9, 'H');
+  s.teams[0].melds = { 5: [c(5, 'S'), c(5, 'H'), c(5, 'D'), c(5, 'C'), c(5, 'S'), c(5, 'H'), c(5, 'D')] };
+  s.teams[0].hasMelded = true;
+  s.players[0].hand = [last];
+  s.turn = 0;
+  s.phase = 'play';
+  return { s, last };
+}
+
+test('a partner who says no stops you going out this turn', () => {
+  const { s, last } = readyToGoOut();
+  const asked = applyMove(s, { type: 'askPartner' });
+  eq(asked.permission.asker, 0);
+  eq(asked.permission.partner, 2, 'the partner sits opposite');
+
+  const answered = applyMove(asked, { type: 'answerPartner', yes: false });
+  eq(answered.permission.answer, 'no');
+
+  let message = '';
+  try { applyMove(answered, { type: 'discard', card: last.id }); } catch (e) { message = e.message; }
+  ok(message.includes('said no'), `expected the refusal to bind, got: ${message}`);
+});
+
+test('a partner who says yes lets you go out', () => {
+  const { s, last } = readyToGoOut();
+  const asked = applyMove(s, { type: 'askPartner' });
+  const answered = applyMove(asked, { type: 'answerPartner', yes: true });
+  const out = applyMove(answered, { type: 'discard', card: last.id });
+  ok(out.handOver, 'the hand ended');
+  eq(out.outPlayer, 0);
+});
+
+test('you only get to ask once, and only after drawing', () => {
+  const { s } = readyToGoOut();
+  const asked = applyMove(s, { type: 'askPartner' });
+  let message = '';
+  try { applyMove(asked, { type: 'askPartner' }); } catch (e) { message = e.message; }
+  ok(message.includes('already asked'), `got: ${message}`);
+
+  const early = createGame({ seed: 6 });
+  let second = '';
+  try { applyMove(early, { type: 'askPartner' }); } catch (e) { second = e.message; }
+  ok(second.includes('after you have drawn'), `got: ${second}`);
+});

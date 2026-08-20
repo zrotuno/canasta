@@ -12,7 +12,7 @@ import {
   buildDeck, makeRng, shuffle, cardValue, isWild, isRedThree, isBlackThree, isNatural, label,
 } from './cards.js';
 import {
-  meldError, meldPoints, meldRank, canastaBonus, isCanasta, isBlackThreeMeld, MAX_WILDS,
+  meldError, meldPoints, meldRank, canastaBonus, isCanasta, isBlackThreeMeld, canAddToMeld, MAX_WILDS,
 } from './melds.js';
 
 export const DEFAULT_CONFIG = {
@@ -75,6 +75,8 @@ export function createGame({
     // True when the partnership put its very first meld down this turn, which
     // is what makes going out in the same turn a concealed hand.
     openedThisTurn: false,
+    // Set while a player has asked their partner for leave to go out.
+    permission: null,
     handOver: false, outPlayer: null, gameOver: false,
     lastHandScores: null, log: [],
   };
@@ -156,6 +158,16 @@ export function canTakePile(state, playerIndex = state.turn) {
   return { ok: false, reason: 'You cannot use the top card, so the pile is not yours to take.' };
 }
 
+// With the stock gone, a player whose side can simply lay the top card on a
+// meld it already has is obliged to take the pile rather than end the hand.
+export function mustTakePile(state, playerIndex = state.turn) {
+  if (state.stock.length > 0) return false;
+  if (pileBlockedReason(state)) return false;
+  const team = state.teams[teamIndexOf(playerIndex)];
+  const top = topDiscard(state);
+  return Boolean(team.melds[top.rank]) && canAddToMeld(team.melds[top.rank], [top]);
+}
+
 // ---------------------------------------------------------------- melding
 
 // A group is either a bare list of card ids, whose target meld is read off the
@@ -230,19 +242,78 @@ export function applyMove(state, move) {
 
   switch (move.type) {
     case 'draw': return doDraw(next, player);
+    case 'pass': return doPass(next);
     case 'takePile': return doTakePile(next, player, team, move);
     case 'meld': return doMeld(next, player, team, move);
     case 'discard': return doDiscard(next, player, team, move);
+    case 'askPartner': return doAskPartner(next, player);
+    case 'answerPartner': return doAnswerPartner(next, move);
     default: throw new Error(`Unknown move type: ${move.type}`);
   }
 }
 
 function doDraw(next, player) {
   if (next.phase !== 'draw') throw new Error('You have already drawn this turn.');
+
+  // Once the stock is gone the hand lives on the discard pile alone: the only
+  // way to keep playing is to take it, and the hand ends the moment somebody
+  // cannot or will not.
+  if (next.stock.length === 0) {
+    if (canTakePile(next).ok) {
+      throw new Error('The stock is gone. Take the discard pile, or pass to end the hand.');
+    }
+    return endHand(next, null);
+  }
+
+  // False here means the stock ran dry banking red threes, last card included.
   if (!drawInto(next, player)) return endHand(next, null);
   next.phase = 'play';
   next.log.push({ turn: next.turn, move: { type: 'draw' } });
   return next;
+}
+
+// Declining the pile once the stock is gone, which ends the hand with nobody
+// out. Refused while the top card fits a meld already on your side's table --
+// that pile is compulsory.
+function doPass(next) {
+  if (next.phase !== 'draw') throw new Error('You can only pass instead of drawing.');
+  if (next.stock.length > 0) throw new Error('The stock still has cards, so you must draw or take the pile.');
+  if (mustTakePile(next)) {
+    throw new Error('The top card goes onto a meld of yours, so the pile is compulsory.');
+  }
+  next.log.push({ turn: next.turn, move: { type: 'pass' } });
+  return endHand(next, null);
+}
+
+// ------------------------------------------------- asking to go out
+
+export const partnerOf = (playerIndex) => (playerIndex + 2) % 4;
+
+// Asking is optional, but the answer binds you, so it may only be asked once
+// and only during your own play phase.
+function doAskPartner(next, player) {
+  if (next.phase !== 'play') throw new Error('Ask your partner during your turn, after you have drawn.');
+  if (next.permission) throw new Error('You have already asked this turn.');
+  next.permission = { asker: player.id, partner: partnerOf(player.id), answer: null };
+  next.log.push({ turn: next.turn, move: { type: 'askPartner' } });
+  return next;
+}
+
+function doAnswerPartner(next, move) {
+  if (!next.permission) throw new Error('Nobody has asked to go out.');
+  if (next.permission.answer !== null) throw new Error('That question has already been answered.');
+  if (typeof move.yes !== 'boolean') throw new Error('Answer yes or no.');
+  next.permission.answer = move.yes ? 'yes' : 'no';
+  next.log.push({ turn: next.turn, move: { type: 'answerPartner', yes: move.yes } });
+  return next;
+}
+
+// A refusal binds: having asked and been told no, you may not go out this turn.
+function refuseIfDenied(next, player) {
+  const p = next.permission;
+  if (p && p.asker === player.id && p.answer === 'no') {
+    throw new Error('Your partner said no, so you cannot go out this turn.');
+  }
 }
 
 function doTakePile(next, player, team, move) {
@@ -323,6 +394,7 @@ function doMeld(next, player, team, move) {
 
   // Melding your last card goes out, provided the partnership has a canasta.
   if (player.hand.length === 0) {
+    refuseIfDenied(next, player);
     if (!hasCanasta(team)) throw new Error('You need a canasta before going out.');
     return endHand(next, player.id);
   }
@@ -337,8 +409,9 @@ function doDiscard(next, player, team, move) {
 
   // Going out on the discard needs a canasta, same as melding out.
   const goingOut = player.hand.length === 1;
-  if (goingOut && !hasCanasta(team)) {
-    throw new Error('You need a canasta before going out.');
+  if (goingOut) {
+    refuseIfDenied(next, player);
+    if (!hasCanasta(team)) throw new Error('You need a canasta before going out.');
   }
 
   takeFromHand(player.hand, [move.card]);
@@ -353,6 +426,7 @@ function doDiscard(next, player, team, move) {
   next.tookPileThisTurn = false;
   next.meldedThisTurn = false;
   next.openedThisTurn = false;
+  next.permission = null;
   return next;
 }
 
