@@ -260,7 +260,11 @@ function doTakePile(next, player, team, move) {
   // The player takes the whole pile, but only the top card and cards from
   // hand may count toward an opening meld.
   const pile = next.discard.splice(0, next.discard.length);
-  const fromPile = pile.filter((c) => c.id !== top.id);
+  const rest = pile.filter((c) => c.id !== top.id);
+  // A red three buried in the pile is a bonus like any other: it is banked on
+  // the spot, and unlike one drawn from the stock it is not replaced.
+  const buriedReds = rest.filter(isRedThree);
+  const fromPile = rest.filter((c) => !isRedThree(c));
   player.hand.push(top);
 
   const wasFirstMeld = !team.hasMelded;
@@ -282,6 +286,7 @@ function doTakePile(next, player, team, move) {
 
   team.hasMelded = true;
   if (wasFirstMeld) next.openedThisTurn = true;
+  team.redThrees.push(...buriedReds);
   player.hand.push(...fromPile);
   next.frozen = false;
   next.phase = 'play';
@@ -299,7 +304,10 @@ function doMeld(next, player, team, move) {
 
   const wasFirstMeld = !team.hasMelded;
   const selected = entries.reduce((n, g) => n + g.ids.length, 0);
-  const goingOut = player.hand.length - selected === 0;
+  // Going out is melding the whole hand, or melding all but the one card you
+  // then discard. Both count as "as you go out" for black threes.
+  const remaining = player.hand.length - selected;
+  const goingOut = remaining === 0 || (remaining === 1 && hasCanasta(team));
 
   const built = entries.map((g) => ({ to: g.to, cards: takeFromHand(player.hand, g.ids) }));
   const laid = layGroups(team, built, { goingOut });
