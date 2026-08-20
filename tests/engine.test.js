@@ -159,6 +159,35 @@ test('applyMove does not mutate the state handed to it', () => {
   eq(JSON.stringify(g), before, 'original state untouched');
 });
 
+// The rule stated plainly: run your hand to zero without discarding and you
+// draw a fresh five and keep playing. Only a discard ends a turn.
+test('playing all five cards draws five more and the turn continues', () => {
+  const g = rigged(s => {
+    s.players[0].hand = [
+      { id: 'a0', rank: 1, suit: 'S' }, { id: 'a1', rank: 1, suit: 'H' },
+      { id: 'a2', rank: 1, suit: 'D' }, { id: 'a3', rank: 1, suit: 'C' },
+      { id: 't0', rank: 2, suit: 'S' },
+    ];
+  });
+  // Four aces open the four build piles; the two lands on the first of them.
+  let s = g;
+  for (let pile = 0; pile < 4; pile++) {
+    s = applyMove(s, { type: 'play', from: 'hand', index: 0, to: pile });
+    eq(s.turn, 0, 'still your turn mid-hand');
+  }
+  eq(s.players[0].hand.length, 1, 'one card left, no refill yet');
+
+  s = applyMove(s, { type: 'play', from: 'hand', index: 0, to: 0 });
+  eq(s.players[0].hand.length, 5, 'hand refilled on reaching zero');
+  eq(s.turn, 0, 'turn did not pass');
+  eq(s.players[0].discards.flat().length, 0, 'nothing was discarded');
+});
+
+test('a discard is the only thing that ends a turn', () => {
+  const g = rigged(s => { s.players[0].hand[0] = { id: 'ace', rank: 1, suit: 'S' }; });
+  eq(applyMove(g, { type: 'play', from: 'hand', index: 0, to: 0 }).turn, 0, 'play keeps the turn');
+  eq(applyMove(g, { type: 'discard', index: 0, to: 0 }).turn, 1, 'discard passes it');
+});
 // ------------------------------------------------------------ report
 
 const passed = results.filter(r => r.ok).length;
