@@ -31,6 +31,9 @@ while ($listener.IsListening) {
     $bytes = [IO.File]::ReadAllBytes($full)
     $ctx.Response.ContentType = "$type; charset=utf-8"
     $ctx.Response.Headers.Add('Cache-Control', 'no-store')
+    # Without an explicit length the response goes out chunked, which service
+    # worker script fetches refuse.
+    $ctx.Response.ContentLength64 = $bytes.Length
     $ctx.Response.OutputStream.Write($bytes, 0, $bytes.Length)
   } else {
     $ctx.Response.StatusCode = 404

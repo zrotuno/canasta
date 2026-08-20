@@ -20,178 +20,199 @@
     --felt-dark: #0a3626;
     --ink: #b0202a;
     --paper: #fdfcf8;
+    --gold: #d8a53a;
     --line: rgba(255, 255, 255, 0.16);
     --text: #eef3f0;
     --muted: #a9c3b6;
-    /* Cards scale with the viewport so one layout serves phone and desktop. */
-    --card-w: clamp(46px, 13vw, 74px);
+    --card-w: clamp(38px, 11vw, 64px);
     --card-h: calc(var(--card-w) * 1.4);
   }
 
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
   body {
     margin: 0;
     min-height: 100dvh;
-    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
-             max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+             max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     background: radial-gradient(ellipse at 50% 0%, var(--felt) 0%, var(--felt-dark) 100%);
     color: var(--text);
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-text-size-adjust: 100%;
   }
 
-  main { max-width: 720px; margin: 0 auto; }
+  main { max-width: 760px; margin: 0 auto; }
+  .screen[hidden] { display: none; }
 
-  header { text-align: center; padding: 8px 0 24px; }
-  h1 {
-    font: 700 clamp(24px, 7vw, 38px)/1.15 Georgia, "Times New Roman", serif;
-    margin: 0 0 6px;
-    letter-spacing: 0.01em;
+  h1 { font: 700 clamp(23px, 6.5vw, 36px)/1.15 Georgia, "Times New Roman", serif; margin: 0 0 6px; text-align: center; }
+  .tagline { color: var(--muted); font-size: 14px; margin: 0 0 24px; text-align: center; }
+
+  label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  input[type=text] {
+    width: 100%; font: inherit; padding: 11px 12px; border-radius: 9px;
+    border: 1px solid var(--line); background: rgba(0,0,0,.22); color: var(--text);
   }
-  .tagline { color: var(--muted); font-size: 14px; margin: 0; }
+  .check { display: flex; gap: 10px; align-items: flex-start; margin: 18px 0; color: var(--muted); font-size: 14px; }
+  .check input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
 
-  .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 20px 0; }
   button {
-    font: inherit;
-    font-weight: 600;
-    padding: 12px 20px;
-    min-height: 48px;           /* comfortable tap target on a phone */
-    border-radius: 10px;
-    border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text);
-    cursor: pointer;
+    font: inherit; font-weight: 600; padding: 13px 22px; min-height: 48px;
+    border-radius: 10px; border: 1px solid var(--line);
+    background: rgba(255,255,255,.08); color: var(--text); cursor: pointer;
   }
-  button.primary { background: var(--paper); color: #16241d; border-color: transparent; }
+  button.primary { background: var(--paper); color: #16241d; border-color: transparent; width: 100%; }
   button:active { transform: translateY(1px); }
 
-  section { margin: 24px 0; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
-
-  .hand { display: flex; flex-wrap: wrap; gap: 8px; }
-
+  /* ---------------------------------------------------------- cards */
   .card {
-    width: var(--card-w);
-    height: var(--card-h);
-    border-radius: calc(var(--card-w) * 0.12);
-    background: var(--paper);
-    color: #16241d;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: calc(var(--card-w) * 0.09);
-    font-weight: 700;
-    line-height: 1;
+    width: var(--card-w); height: var(--card-h);
+    border-radius: calc(var(--card-w) * .12);
+    background: var(--paper); color: #16241d;
+    box-shadow: 0 2px 6px rgba(0,0,0,.35);
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: calc(var(--card-w) * .09);
+    font-weight: 700; line-height: 1; flex: none;
   }
   .card.red { color: var(--ink); }
-  .card.wild { outline: 2px solid #d8a53a; outline-offset: -2px; }
-  .card .rank { font-size: calc(var(--card-w) * 0.30); }
-  .card .suit { font-size: calc(var(--card-w) * 0.34); align-self: flex-end; }
-  .card.forced { box-shadow: 0 0 0 3px #d8a53a, 0 2px 6px rgba(0, 0, 0, 0.35); }
+  .card.wild { outline: 2px solid var(--gold); outline-offset: -2px; }
+  .card.forced { box-shadow: 0 0 0 3px var(--gold), 0 2px 6px rgba(0,0,0,.35); }
+  .card.selectable { cursor: pointer; }
+  .card.selected { transform: translateY(-8px); box-shadow: 0 0 0 3px #fff, 0 6px 12px rgba(0,0,0,.45); }
+  .card .rank { font-size: calc(var(--card-w) * .30); }
+  .card .suit { font-size: calc(var(--card-w) * .34); align-self: flex-end; }
 
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
-  .stat { background: rgba(0, 0, 0, 0.2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
-  .stat b { display: block; font-size: 22px; }
-  .stat span { color: var(--muted); font-size: 12px; }
+  .card.back {
+    background: repeating-linear-gradient(45deg, #1d5c44, #1d5c44 5px, #174936 5px, #174936 10px);
+    border: 1px solid rgba(255,255,255,.18);
+  }
+  .card.slot {
+    background: rgba(0,0,0,.22); border: 1px dashed var(--line); box-shadow: none;
+    align-items: center; justify-content: center;
+  }
+  .slot-hint { color: var(--muted); font-size: calc(var(--card-w) * .26); font-weight: 600; }
 
-  .note { color: var(--muted); font-size: 13px; }
-  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 28px 0 8px; }
+  /* ---------------------------------------------------------- layout */
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pile { display: flex; flex-direction: column; align-items: center; gap: 4px; border-radius: 10px; padding: 4px; }
+  .pile.target { background: rgba(216,165,58,.22); outline: 2px solid var(--gold); cursor: pointer; }
+  .caption { font-size: 11px; color: var(--muted); }
+
+  .zone { margin: 16px 0; }
+  .zone-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .zone-head h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; }
+  .zone-head span { font-size: 12px; color: var(--muted); }
+
+  .divider { height: 1px; background: var(--line); margin: 18px 0; }
+
+  .hint {
+    position: sticky; bottom: 0;
+    background: rgba(10,54,38,.94); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 14px; font-size: 14px; margin-top: 16px;
+  }
+
+  .centered { text-align: center; padding: 48px 12px; }
+  .centered h2 { font: 700 24px/1.2 Georgia, serif; margin: 0 0 10px; }
+  .centered p { color: var(--muted); margin: 0 0 24px; }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0 8px; }
   a { color: #cfe3d8; }
 </style>
 </head>
 <body>
 <main>
-  <header>
+
+  <!-- ------------------------------------------------------- title -->
+  <section id="title" class="screen">
     <h1>Rotuno Spite&nbsp;and&nbsp;Malice</h1>
     <p class="tagline">Kings and Jokers wild · aces and twos compulsory</p>
-  </header>
 
-  <div class="actions">
-    <button class="primary" id="deal">Deal a hand</button>
-    <button id="share">Share</button>
-  </div>
+    <label for="p1">Player one</label>
+    <input type="text" id="p1" placeholder="Player 1" autocomplete="off">
+    <label for="p2">Player two</label>
+    <input type="text" id="p2" placeholder="Player 2" autocomplete="off">
 
-  <section id="table" hidden>
-    <h2>Your hand</h2>
-    <div class="hand" id="hand"></div>
-    <p class="note" id="forced"></p>
+    <div class="check">
+      <input type="checkbox" id="fast-wilds">
+      <label for="fast-wilds" style="margin:0">
+        Faster game — let wilds stand in for aces and twos as well
+      </label>
+    </div>
 
-    <h2 style="margin-top:20px">The deal</h2>
-    <div class="stats" id="stats"></div>
+    <button class="primary" id="start">Deal</button>
+    <footer>Two players, one device · <a href="./tests/">engine tests</a></footer>
   </section>
 
-  <section>
-    <h2>Status</h2>
-    <p class="note" id="status">Rules engine is complete and tested. The playable board is next.</p>
+  <!-- ------------------------------------------------------- board -->
+  <section id="board" class="screen" hidden>
+    <div class="zone">
+      <div class="zone-head">
+        <h2 id="opp-name">Opponent</h2>
+        <span id="opp-counts"></span>
+      </div>
+      <div class="row">
+        <div class="pile"><div id="opp-payoff" class="row"></div><span class="caption">payoff</span></div>
+        <div class="pile"><div id="opp-discards" class="row"></div><span class="caption">their discards</span></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="zone">
+      <div class="zone-head">
+        <h2>Build piles — ace up to queen</h2>
+        <span id="draw-count"></span>
+      </div>
+      <div class="row" id="builds"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="zone">
+      <div class="zone-head">
+        <h2 id="you-name">Your turn</h2>
+        <span id="payoff-count"></span>
+      </div>
+      <div class="row">
+        <div class="pile"><div id="payoff" class="row"></div><span class="caption">your payoff</span></div>
+      </div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-head"><h2>Your hand</h2></div>
+      <div class="row" id="hand"></div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-head"><h2>Your discards — placing here ends your turn</h2></div>
+      <div class="row" id="discards"></div>
+    </div>
+
+    <p class="hint" id="hint"></p>
   </section>
 
-  <footer>
-    <a href="./tests/">engine tests</a>
-  </footer>
+  <!-- ------------------------------------------------------- pass -->
+  <section id="pass" class="screen" hidden>
+    <div class="centered">
+      <h2 id="pass-text">Hand over the device</h2>
+      <p>Do not look at the screen until it is your turn.</p>
+      <button class="primary" id="continue">I am ready</button>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------- win -->
+  <section id="win" class="screen" hidden>
+    <div class="centered">
+      <h2>Game over</h2>
+      <p id="win-text"></p>
+      <button class="primary" id="again">New game</button>
+    </div>
+  </section>
+
 </main>
 
 <script type="module">
-  import { createGame, forcedPlayIndices } from './src/engine/game.js';
-  import { label, isWild } from './src/engine/cards.js';
-
-  const SUIT = { S: '♠', H: '♥', D: '♦', C: '♣', X: '★' };
-  const RED = new Set(['H', 'D']);
-
-  function cardEl(card, forced) {
-    const el = document.createElement('div');
-    el.className = 'card';
-    if (RED.has(card.suit)) el.classList.add('red');
-    if (isWild(card)) el.classList.add('wild');
-    if (forced) el.classList.add('forced');
-    const text = label(card);
-    el.innerHTML =
-      `<span class="rank">${card.rank === 0 ? 'JKR' : text.slice(0, -1)}</span>` +
-      `<span class="suit">${SUIT[card.suit] ?? ''}</span>`;
-    el.title = text;
-    return el;
-  }
-
-  function stat(value, caption) {
-    return `<div class="stat"><b>${value}</b><span>${caption}</span></div>`;
-  }
-
-  function deal() {
-    const game = createGame({ players: ['You', 'Opponent'] });
-    const you = game.players[0];
-    const forced = new Set(forcedPlayIndices(game, you));
-
-    const hand = document.getElementById('hand');
-    hand.replaceChildren(...you.hand.map((c, i) => cardEl(c, forced.has(i))));
-
-    document.getElementById('forced').textContent = forced.size
-      ? `You must play ${forced.size === 1 ? 'that card' : 'those cards'} before ending your turn.`
-      : 'Nothing compulsory in this hand.';
-
-    document.getElementById('stats').innerHTML =
-      stat(you.payoff.length, 'your payoff') +
-      stat(game.players[1].payoff.length, 'their payoff') +
-      stat(game.draw.length, 'draw pile') +
-      stat(108, 'cards in play');
-
-    document.getElementById('table').hidden = false;
-  }
-
-  document.getElementById('deal').addEventListener('click', deal);
-
-  // The share sheet is the whole point of a web build: one link, and it opens
-  // on an iPhone or an Android phone with nothing to install.
-  document.getElementById('share').addEventListener('click', async () => {
-    const data = { title: 'Rotuno Spite and Malice', text: 'Game of Spite and Malice', url: location.href };
-    try {
-      if (navigator.share) await navigator.share(data);
-      else {
-        await navigator.clipboard.writeText(location.href);
-        document.getElementById('status').textContent = 'Link copied to the clipboard.';
-      }
-    } catch { /* the user dismissed the sheet */ }
-  });
+  import { boot } from './src/ui/board.js';
+  boot();
 
   if ('serviceWorker' in navigator) {
     addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
