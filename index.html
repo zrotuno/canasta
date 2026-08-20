@@ -81,9 +81,21 @@
   .card .rank { font-size: calc(var(--card-w) * .30); }
   .card .suit { font-size: calc(var(--card-w) * .34); align-self: flex-end; }
 
+  /* Commemorative back, for the 50th. */
   .card.back {
-    background: repeating-linear-gradient(45deg, #1d5c44, #1d5c44 5px, #174936 5px, #174936 10px);
-    border: 1px solid rgba(255,255,255,.18);
+    background:
+      repeating-linear-gradient(45deg, rgba(216,165,58,.10) 0 6px, transparent 6px 12px),
+      linear-gradient(160deg, #1d5c44, #123c2c);
+    border: 1px solid rgba(216,165,58,.55);
+    color: var(--gold);
+    align-items: center; justify-content: center;
+    font-family: Georgia, "Times New Roman", serif;
+    text-align: center; gap: 2px;
+  }
+  .card.back .fifty { font-size: calc(var(--card-w) * .42); line-height: .95; }
+  .card.back .years {
+    font-size: calc(var(--card-w) * .125); letter-spacing: .1em;
+    text-transform: uppercase; opacity: .9;
   }
   .card.slot {
     background: rgba(0,0,0,.22); border: 1px dashed var(--line); box-shadow: none;
@@ -125,18 +137,12 @@
   <section id="title" class="screen">
     <h1>Rotuno Spite&nbsp;and&nbsp;Malice</h1>
     <p class="tagline">Kings and Jokers wild · aces and twos compulsory</p>
+    <p class="tagline" style="color:var(--gold); margin-top:-16px">Fifty years — with love, for Mum and Dad</p>
 
     <label for="p1">Player one</label>
     <input type="text" id="p1" placeholder="Player 1" autocomplete="off">
     <label for="p2">Player two</label>
     <input type="text" id="p2" placeholder="Player 2" autocomplete="off">
-
-    <div class="check">
-      <input type="checkbox" id="fast-wilds">
-      <label for="fast-wilds" style="margin:0">
-        Faster game — let wilds stand in for aces and twos as well
-      </label>
-    </div>
 
     <button class="primary" id="start">Deal</button>
     <footer>Two players, one device · <a href="./tests/">engine tests</a></footer>
@@ -151,6 +157,7 @@
       </div>
       <div class="row">
         <div class="pile"><div id="opp-payoff" class="row"></div><span class="caption">payoff</span></div>
+        <div class="pile"><div id="opp-hand" class="row"></div><span class="caption">their hand</span></div>
         <div class="pile"><div id="opp-discards" class="row"></div><span class="caption">their discards</span></div>
       </div>
     </div>

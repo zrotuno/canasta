@@ -5,7 +5,7 @@
 // what lets the same code run a local game, drive an AI, or sit behind a server
 // that referees two remote players.
 
-import { buildDeck, makeRng, shuffle, isWild, QUEEN, ACE, TWO, LOWEST_WILD_RANK } from './cards.js';
+import { buildDeck, makeRng, shuffle, isWild, QUEEN, ACE, TWO } from './cards.js';
 
 export const DEFAULT_CONFIG = {
   // Two separate decks with two separate jobs: one is the draw stock players
@@ -16,14 +16,6 @@ export const DEFAULT_CONFIG = {
   handSize: 5,
   buildPiles: 4,      // shared centre piles, built A -> Q
   discardPiles: 4,    // personal side stacks; playing here ends your turn
-
-  // House rules.
-  // Standard play: aces and twos must be the real card, so piles can stall
-  // waiting for one. Turn this on and wilds cover them too, which opens piles
-  // far more freely and makes for a noticeably faster game.
-  wildsAsLowRanks: false,
-  // Holding a playable ace or two obliges you to play it before ending a turn.
-  forceLowCards: true,
 };
 
 export function createGame({ config = {}, seed = Date.now(), players = ['Player 1', 'Player 2'] } = {}) {
@@ -82,24 +74,21 @@ export const currentPlayer = (s) => s.players[s.turn];
 // The rank a build pile will accept next: an empty pile wants an Ace.
 export const nextRankFor = (pile) => (pile.length === 0 ? ACE : pile.length + 1);
 
-// A wild fits any unfinished pile from the three upward. Aces and twos have to
-// be the real card unless the wildsAsLowRanks house rule is switched on.
-export function canPlayOnBuild(card, pile, config = DEFAULT_CONFIG) {
+// Kings and Jokers are wild for every rank, aces and twos included, so an
+// empty pile can be opened with one.
+export function canPlayOnBuild(card, pile) {
   if (pile.length >= QUEEN) return false;
-  const need = nextRankFor(pile);
-  if (isWild(card)) return config.wildsAsLowRanks || need >= LOWEST_WILD_RANK;
-  return card.rank === need;
+  return isWild(card) || card.rank === nextRankFor(pile);
 }
 
 // Aces and twos in hand are compulsory: you may not end your turn while one of
-// them still has a pile to go on. Wilds are never forced even when they are
-// allowed to cover low ranks -- spending a wild stays your choice. Returns the
-// hand indices currently under obligation so the UI can flag them.
+// them still has a pile to go on. A wild is never forced -- spending one stays
+// your choice. Returns the hand indices currently under obligation so the UI
+// can flag them.
 export function forcedPlayIndices(state, player = currentPlayer(state)) {
-  if (!state.config.forceLowCards) return [];
   return player.hand.reduce((out, card, i) => {
     if (card.rank !== ACE && card.rank !== TWO) return out;
-    const playable = state.build.some((pile) => canPlayOnBuild(card, pile, state.config));
+    const playable = state.build.some((pile) => canPlayOnBuild(card, pile));
     return playable ? [...out, i] : out;
   }, []);
 }
@@ -128,7 +117,7 @@ export function getLegalMoves(state) {
 
   for (const src of sources(player)) {
     state.build.forEach((pile, buildIndex) => {
-      if (canPlayOnBuild(src.card, pile, state.config)) {
+      if (canPlayOnBuild(src.card, pile)) {
         moves.push({ type: 'play', from: src.zone, index: src.index, to: buildIndex });
       }
     });
@@ -143,6 +132,11 @@ export function getLegalMoves(state) {
       moves.push({ type: 'discard', index: handIndex, to: discardIndex });
     });
   });
+
+  // Reachable only with an empty hand and nothing left to draw: no card to
+  // play and none to discard. Passing keeps the game alive rather than
+  // dead-locking on a player who cannot act.
+  if (moves.length === 0) moves.push({ type: 'pass' });
 
   return moves;
 }
@@ -180,7 +174,7 @@ export function applyMove(state, move) {
 
     const pile = next.build[move.to];
     if (!pile) throw new Error(`No build pile ${move.to}.`);
-    if (!canPlayOnBuild(src, pile, next.config)) {
+    if (!canPlayOnBuild(src, pile)) {
       throw new Error(`${src.id} cannot go on build pile ${move.to}.`);
     }
 
@@ -201,6 +195,17 @@ export function applyMove(state, move) {
 
     // Emptying your hand earns a fresh one and the turn continues.
     if (player.hand.length === 0) drawUp(next, player);
+    return next;
+  }
+
+  if (move.type === 'pass') {
+    // Only a player with genuinely nothing to do may pass.
+    if (getLegalMoves(next).some((m) => m.type !== 'pass')) {
+      throw new Error('You still have a legal move, so you cannot pass.');
+    }
+    next.log.push({ turn: next.turn, move });
+    next.turn = (next.turn + 1) % next.players.length;
+    drawUp(next, currentPlayer(next));
     return next;
   }
 

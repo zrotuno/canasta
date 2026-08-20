@@ -25,6 +25,8 @@ function cardEl(card, { faceDown = false, forced = false, selectable = false } =
   el.className = 'card';
   if (faceDown) {
     el.classList.add('back');
+    el.innerHTML = '<span class="fifty">50</span><span class="years">years</span>';
+    el.title = 'Fifty years';
     return el;
   }
   if (RED.has(card.suit)) el.classList.add('red');
@@ -86,6 +88,11 @@ function render() {
     return top ? cardEl(top) : emptySlot();
   }));
 
+  // Their hand stays hidden, which is what puts the commemorative back on the
+  // table for most of the game.
+  const oppHand = $('opp-hand');
+  oppHand.replaceChildren(...them.hand.map(() => cardEl(null, { faceDown: true })));
+
   // --- build piles --------------------------------------------------------
   const builds = $('builds');
   builds.replaceChildren(...state.build.map((pile, i) => {
@@ -99,7 +106,7 @@ function render() {
 
     const caption = document.createElement('span');
     caption.className = 'caption';
-    caption.textContent = pile.length ? `${pile.length}/12` : 'needs ace';
+    caption.textContent = pile.length ? `${pile.length}/12` : 'ace or wild';
     wrap.append(caption);
     return wrap;
   }));
@@ -231,9 +238,8 @@ function finishTurnOrRender(turnEnded = false) {
 }
 
 function newGame() {
-  const fast = $('fast-wilds').checked;
   const names = [$('p1').value.trim() || 'Player 1', $('p2').value.trim() || 'Player 2'];
-  state = createGame({ players: names, config: { wildsAsLowRanks: fast } });
+  state = createGame({ players: names });
   selected = null;
   message = '';
   show('board');

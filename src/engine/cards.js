@@ -10,9 +10,6 @@ export const TWO = 2;
 export const QUEEN = 12;
 export const KING = 13;
 
-// Wilds cover the three upward. Aces and twos have to be the real card, which
-// is what makes them compulsory to play when you are holding one.
-export const LOWEST_WILD_RANK = 3;
 
 export const SUITS = ['S', 'H', 'D', 'C'];
 

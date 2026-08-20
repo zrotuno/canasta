@@ -68,17 +68,11 @@ test('empty build pile wants an ace', () => {
   ok(!canPlayOnBuild(card('t', TWO), []), 'two should not play on empty');
 });
 
-test('wilds cover the three upward, never an ace or a two', () => {
-  ok(!canPlayOnBuild(card('k', KING), pileOf(0)), 'king cannot be an ace');
-  ok(!canPlayOnBuild(card('j', JOKER), pileOf(1)), 'joker cannot be a two');
-  ok(canPlayOnBuild(card('k', KING), pileOf(2)), 'king can be a three');
-  ok(canPlayOnBuild(card('j', JOKER), pileOf(7)), 'joker can be an eight');
-});
-
-test('the fast house rule lets wilds cover aces and twos', () => {
-  const fast = { wildsAsLowRanks: true };
-  ok(canPlayOnBuild(card('k', KING), pileOf(0), fast), 'king as an ace');
-  ok(canPlayOnBuild(card('j', JOKER), pileOf(1), fast), 'joker as a two');
+test('wilds cover every rank, aces and twos included', () => {
+  ok(canPlayOnBuild(card('k', KING), pileOf(0)), 'king opens an empty pile as an ace');
+  ok(canPlayOnBuild(card('j', JOKER), pileOf(1)), 'joker as a two');
+  ok(canPlayOnBuild(card('k', KING), pileOf(2)), 'king as a three');
+  ok(canPlayOnBuild(card('j', JOKER), pileOf(7)), 'joker as an eight');
 });
 
 test('nothing plays onto a completed pile', () => {
@@ -163,21 +157,9 @@ test('a two is not forced when no pile is waiting for one', () => {
   eq(applyMove(g, { type: 'discard', index: 0, to: 0 }).turn, 1, 'discard allowed');
 });
 
-test('a wild is never forced, even when it may cover low ranks', () => {
-  const g = rigged(
-    s => { noForced(s); s.players[0].hand[0] = card('k', KING); },
-    { config: { wildsAsLowRanks: true } }
-  );
+test('a wild is never forced even though it can open a pile', () => {
+  const g = rigged(s => { noForced(s); s.players[0].hand[0] = card('k', KING); });
   eq(forcedPlayIndices(g), [], 'spending a wild stays a choice');
-  eq(applyMove(g, { type: 'discard', index: 0, to: 0 }).turn, 1, 'discard allowed');
-});
-
-test('forceLowCards off lets you sit on an ace', () => {
-  const g = rigged(
-    s => { noForced(s); s.players[0].hand[0] = card('ace', ACE); },
-    { config: { forceLowCards: false } }
-  );
-  eq(forcedPlayIndices(g), [], 'no obligation when the rule is off');
   eq(applyMove(g, { type: 'discard', index: 0, to: 0 }).turn, 1, 'discard allowed');
 });
 
