@@ -72,6 +72,9 @@ export function createGame({
     turn: firstPlayer % 4, phase: 'draw',
     tookPileThisTurn: false,
     meldedThisTurn: false,
+    // True when the partnership put its very first meld down this turn, which
+    // is what makes going out in the same turn a concealed hand.
+    openedThisTurn: false,
     handOver: false, outPlayer: null, gameOver: false,
     lastHandScores: null, log: [],
   };
@@ -278,6 +281,7 @@ function doTakePile(next, player, team, move) {
   }
 
   team.hasMelded = true;
+  if (wasFirstMeld) next.openedThisTurn = true;
   player.hand.push(...fromPile);
   next.frozen = false;
   next.phase = 'play';
@@ -305,6 +309,7 @@ function doMeld(next, player, team, move) {
   }
 
   team.hasMelded = true;
+  if (wasFirstMeld) next.openedThisTurn = true;
   next.meldedThisTurn = true;
   next.log.push({ turn: next.turn, move: { type: 'meld', laid } });
 
@@ -339,6 +344,7 @@ function doDiscard(next, player, team, move) {
   next.phase = 'draw';
   next.tookPileThisTurn = false;
   next.meldedThisTurn = false;
+  next.openedThisTurn = false;
   return next;
 }
 
@@ -373,10 +379,10 @@ function endHand(next, outPlayerId) {
   next.outPlayer = outPlayerId;
 
   const outTeam = outPlayerId === null ? null : teamIndexOf(outPlayerId);
-  // Concealed: the whole hand went down in one turn with nothing melded before.
-  const concealed = outPlayerId !== null
-    && next.tookPileThisTurn === false
-    && next.log.filter((e) => e.move.type === 'meld').length === 1;
+  // Concealed: the partnership had nothing down before this turn and its whole
+  // hand went out in it. Counting meld entries in the log would have counted
+  // the opponents' melds too.
+  const concealed = outPlayerId !== null && next.openedThisTurn;
 
   next.lastHandScores = next.teams.map((team) =>
     scoreTeam(next, team, { wentOut: team.id === outTeam, concealed: concealed && team.id === outTeam }));

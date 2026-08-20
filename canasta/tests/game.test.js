@@ -447,6 +447,47 @@ test('red threes count against a partnership that never melded', () => {
   eq(redThreeScore(s, s.teams[0]), -200, 'a penalty without a meld');
 });
 
+test('going out having melded nothing before pays the concealed bonus', () => {
+  // Seven aces and a black three, all laid in one turn by a side with nothing
+  // on the table: that is a concealed hand.
+  const aces = Array.from({ length: 7 }, (_, i) => c(ACE, 'SHDC'[i % 4]));
+  const s = rig((x) => {
+    x.phase = 'play';
+    x.players[0].hand = [...aces];
+    x.players.forEach((p, i) => { if (i > 0) p.hand = []; });
+  });
+  const after = applyMove(s, { type: 'meld', groups: [ids(...aces)] });
+  ok(after.handOver, 'the hand ended');
+  eq(after.lastHandScores[0].goOut, 200, 'concealed pays double');
+});
+
+test('going out after melding on an earlier turn pays the plain bonus', () => {
+  const last = c(9, 'S');
+  const s = rig((x) => {
+    x.phase = 'play';
+    x.teams[0].hasMelded = true;                 // melded on some previous turn
+    x.openedThisTurn = false;
+    x.teams[0].melds[ACE] = Array.from({ length: 7 }, () => c(ACE, 'S'));
+    x.players[0].hand = [last];
+    x.players.forEach((p, i) => { if (i > 0) p.hand = []; });
+  });
+  const after = applyMove(s, { type: 'discard', card: last.id });
+  eq(after.lastHandScores[0].goOut, 100, 'not concealed');
+});
+
+test('an opponent melding does not affect the concealed bonus', () => {
+  const aces = Array.from({ length: 7 }, (_, i) => c(ACE, 'SHDC'[i % 4]));
+  const s = rig((x) => {
+    x.phase = 'play';
+    x.teams[1].hasMelded = true;                 // the other side is well underway
+    x.teams[1].melds[9] = [c(9, 'S'), c(9, 'H'), c(9, 'D')];
+    x.players[0].hand = [...aces];
+    x.players.forEach((p, i) => { if (i > 0) p.hand = []; });
+  });
+  const after = applyMove(s, { type: 'meld', groups: [ids(...aces)] });
+  eq(after.lastHandScores[0].goOut, 200, 'still concealed');
+});
+
 test('hand scores are banked and the minimum is recalculated', () => {
   const last = c(9, 'S');
   const s = rig((x) => {
