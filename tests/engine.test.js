@@ -60,17 +60,34 @@ test('nothing plays onto a completed pile', () => {
 
 // ------------------------------------------------------------ game setup
 
-test('setup deals payoff and hand to every player', () => {
-  const g = createGame({ seed: 1, config: { payoffSize: 20, handSize: 5 } });
+test('deck one splits evenly into the payoff piles', () => {
+  const g = createGame({ seed: 1 });
   eq(g.players.length, 2);
-  for (const p of g.players) { eq(p.payoff.length, 20); eq(p.hand.length, 5); }
-  eq(g.draw.length, 108 - 2 * 25, 'remaining draw pile');
+  for (const p of g.players) eq(p.payoff.length, 27, 'half of a 54-card deck');
 });
 
-test('an undersized deck is rejected rather than dealt badly', () => {
+test('deck two deals the opening hands and the rest is the draw pile', () => {
+  const g = createGame({ seed: 1 });
+  for (const p of g.players) eq(p.hand.length, 5);
+  eq(g.draw.length, 54 - 2 * 5, 'draw pile is deck two minus the hands');
+});
+
+test('108 cards are in play and none are lost in the deal', () => {
+  const g = createGame({ seed: 5 });
+  const held = g.players.reduce((n, p) => n + p.payoff.length + p.hand.length, 0);
+  eq(held + g.draw.length + g.completed.length, 108, 'every card accounted for');
+});
+
+test('four players still split the payoff deck evenly', () => {
+  const g = createGame({ seed: 2, players: ['a', 'b', 'c', 'd'] });
+  for (const p of g.players) eq(p.payoff.length, 13, '54 / 4, rounded down');
+  eq(g.draw.length, 54 + 2 - 4 * 5, 'the 2 undealt payoff cards join the draw pile');
+});
+
+test('a payoff pile larger than the deck allows is rejected', () => {
   throws(
-    () => createGame({ seed: 1, config: { deckCount: 1, jokersPerDeck: 2, payoffSize: 26 } }),
-    'one deck cannot seed two 26-card payoffs'
+    () => createGame({ seed: 1, config: { payoffSize: 30 } }),
+    'two piles of 30 do not fit in 54 cards'
   );
 });
 

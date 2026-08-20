@@ -8,9 +8,11 @@
 import { buildDeck, makeRng, shuffle, isWild, QUEEN, ACE } from './cards.js';
 
 export const DEFAULT_CONFIG = {
-  deckCount: 2,
-  jokersPerDeck: 2,
-  payoffSize: 20,     // cards in the pile you race to empty
+  // Two separate decks with two separate jobs: one is the draw stock players
+  // refill their hands from, the other is dealt out as the payoff piles.
+  drawDeck: { deckCount: 1, jokersPerDeck: 2 },    // 54 cards
+  payoffDeck: { deckCount: 1, jokersPerDeck: 2 },  // 54 cards, split between players
+  payoffSize: null,   // null splits the payoff deck evenly; a number deals that many each
   handSize: 5,
   buildPiles: 4,      // shared centre piles, built A -> Q
   discardPiles: 4,    // personal side stacks; playing here ends your turn
@@ -19,30 +21,45 @@ export const DEFAULT_CONFIG = {
 export function createGame({ config = {}, seed = Date.now(), players = ['Player 1', 'Player 2'] } = {}) {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   const rng = makeRng(seed);
-  const deck = shuffle(buildDeck(cfg), rng);
 
-  const needed = players.length * (cfg.payoffSize + cfg.handSize);
-  if (deck.length < needed) {
+  const draw = shuffle(buildDeck(cfg.drawDeck), rng);
+  const payoffStock = shuffle(buildDeck(cfg.payoffDeck), rng);
+
+  // An unspecified payoff size just divides the payoff deck evenly.
+  const payoffSize = cfg.payoffSize ?? Math.floor(payoffStock.length / players.length);
+  if (payoffSize < 1) throw new Error('Payoff deck is too small to deal anyone a pile.');
+  if (payoffStock.length < players.length * payoffSize) {
     throw new Error(
-      `Deck too small: ${deck.length} cards cannot seed ${players.length} players ` +
-      `(${cfg.payoffSize} payoff + ${cfg.handSize} hand each = ${needed}).`
+      `Payoff deck too small: ${payoffStock.length} cards cannot deal ` +
+      `${players.length} piles of ${payoffSize}.`
     );
   }
 
   const seats = players.map((name, i) => ({
     id: i,
     name,
-    payoff: deck.splice(0, cfg.payoffSize),
-    hand: deck.splice(0, cfg.handSize),
+    payoff: payoffStock.splice(0, payoffSize),
+    hand: [],
     discards: Array.from({ length: cfg.discardPiles }, () => []),
   }));
 
+  // Whatever the payoff deal did not use joins the draw stock rather than
+  // being wasted, then hands come off the top.
+  if (payoffStock.length) {
+    draw.push(...payoffStock);
+    shuffle(draw, rng);
+  }
+  if (draw.length < players.length * cfg.handSize) {
+    throw new Error(`Draw deck too small to deal ${players.length} hands of ${cfg.handSize}.`);
+  }
+  for (const seat of seats) seat.hand = draw.splice(0, cfg.handSize);
+
   return {
-    config: cfg,
+    config: { ...cfg, payoffSize },
     seed,
     players: seats,
     build: Array.from({ length: cfg.buildPiles }, () => []),
-    draw: deck,
+    draw,
     completed: [],      // finished build piles, recycled when draw runs dry
     turn: 0,
     winner: null,
