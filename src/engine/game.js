@@ -5,7 +5,7 @@
 // what lets the same code run a local game, drive an AI, or sit behind a server
 // that referees two remote players.
 
-import { buildDeck, makeRng, shuffle, isWild, QUEEN, ACE } from './cards.js';
+import { buildDeck, makeRng, shuffle, isWild, QUEEN, ACE, TWO, LOWEST_WILD_RANK } from './cards.js';
 
 export const DEFAULT_CONFIG = {
   // Two separate decks with two separate jobs: one is the draw stock players
@@ -16,6 +16,14 @@ export const DEFAULT_CONFIG = {
   handSize: 5,
   buildPiles: 4,      // shared centre piles, built A -> Q
   discardPiles: 4,    // personal side stacks; playing here ends your turn
+
+  // House rules.
+  // Standard play: aces and twos must be the real card, so piles can stall
+  // waiting for one. Turn this on and wilds cover them too, which opens piles
+  // far more freely and makes for a noticeably faster game.
+  wildsAsLowRanks: false,
+  // Holding a playable ace or two obliges you to play it before ending a turn.
+  forceLowCards: true,
 };
 
 export function createGame({ config = {}, seed = Date.now(), players = ['Player 1', 'Player 2'] } = {}) {
@@ -74,10 +82,26 @@ export const currentPlayer = (s) => s.players[s.turn];
 // The rank a build pile will accept next: an empty pile wants an Ace.
 export const nextRankFor = (pile) => (pile.length === 0 ? ACE : pile.length + 1);
 
-// A wild can stand in for any rank, so it fits any pile that is not yet full.
-export function canPlayOnBuild(card, pile) {
+// A wild fits any unfinished pile from the three upward. Aces and twos have to
+// be the real card unless the wildsAsLowRanks house rule is switched on.
+export function canPlayOnBuild(card, pile, config = DEFAULT_CONFIG) {
   if (pile.length >= QUEEN) return false;
-  return isWild(card) || card.rank === nextRankFor(pile);
+  const need = nextRankFor(pile);
+  if (isWild(card)) return config.wildsAsLowRanks || need >= LOWEST_WILD_RANK;
+  return card.rank === need;
+}
+
+// Aces and twos in hand are compulsory: you may not end your turn while one of
+// them still has a pile to go on. Wilds are never forced even when they are
+// allowed to cover low ranks -- spending a wild stays your choice. Returns the
+// hand indices currently under obligation so the UI can flag them.
+export function forcedPlayIndices(state, player = currentPlayer(state)) {
+  if (!state.config.forceLowCards) return [];
+  return player.hand.reduce((out, card, i) => {
+    if (card.rank !== ACE && card.rank !== TWO) return out;
+    const playable = state.build.some((pile) => canPlayOnBuild(card, pile, state.config));
+    return playable ? [...out, i] : out;
+  }, []);
 }
 
 function topOf(pile) {
@@ -104,13 +128,16 @@ export function getLegalMoves(state) {
 
   for (const src of sources(player)) {
     state.build.forEach((pile, buildIndex) => {
-      if (canPlayOnBuild(src.card, pile)) {
+      if (canPlayOnBuild(src.card, pile, state.config)) {
         moves.push({ type: 'play', from: src.zone, index: src.index, to: buildIndex });
       }
     });
   }
 
-  // Discarding is only ever from the hand, and always ends the turn.
+  // With a forced card outstanding the turn cannot be ended, so no discards are
+  // offered. Other plays stay legal: you keep control of the order you play in.
+  if (forcedPlayIndices(state, player).length > 0) return moves;
+
   player.hand.forEach((_, handIndex) => {
     player.discards.forEach((_, discardIndex) => {
       moves.push({ type: 'discard', index: handIndex, to: discardIndex });
@@ -153,7 +180,9 @@ export function applyMove(state, move) {
 
     const pile = next.build[move.to];
     if (!pile) throw new Error(`No build pile ${move.to}.`);
-    if (!canPlayOnBuild(src, pile)) throw new Error(`${src.id} cannot go on build pile ${move.to}.`);
+    if (!canPlayOnBuild(src, pile, next.config)) {
+      throw new Error(`${src.id} cannot go on build pile ${move.to}.`);
+    }
 
     const card = takeFrom(next, player, move.from, move.index);
     // A wild is locked to the rank it fills, so the pile stays readable.
@@ -176,6 +205,13 @@ export function applyMove(state, move) {
   }
 
   if (move.type === 'discard') {
+    const forced = forcedPlayIndices(next, player);
+    if (forced.length > 0) {
+      const card = player.hand[forced[0]];
+      const name = card.rank === ACE ? 'ace' : 'two';
+      throw new Error(`You must play the ${name} in hand (slot ${forced[0]}) before discarding.`);
+    }
+
     const card = player.hand[move.index];
     if (!card) throw new Error(`No card in hand at ${move.index}.`);
     const pile = player.discards[move.to];

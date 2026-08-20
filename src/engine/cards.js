@@ -6,8 +6,13 @@
 
 export const JOKER = 0;
 export const ACE = 1;
+export const TWO = 2;
 export const QUEEN = 12;
 export const KING = 13;
+
+// Wilds cover the three upward. Aces and twos have to be the real card, which
+// is what makes them compulsory to play when you are holding one.
+export const LOWEST_WILD_RANK = 3;
 
 export const SUITS = ['S', 'H', 'D', 'C'];
 
@@ -26,7 +31,7 @@ export function label(card) {
 }
 
 // Builds `deckCount` standard decks plus `jokersPerDeck` jokers each.
-// One deck + 2 jokers = 54 cards; two decks + 4 jokers = 108.
+// One deck + 2 jokers = 54 cards; two decks + 2 jokers each = 108.
 export function buildDeck({ deckCount = 2, jokersPerDeck = 2 } = {}) {
   const cards = [];
   for (let d = 0; d < deckCount; d++) {
