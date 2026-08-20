@@ -1,0 +1,35 @@
+# Publishes the Canasta app to GitHub Pages on every push to main.
+#
+# Only the canasta/ folder is uploaded, so the game sits at the root of the
+# site: https://zrotuno.github.io/canasta/ rather than a folder inside it.
+name: Deploy Canasta to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push supersedes one still in flight.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./canasta
+      - id: deployment
+        uses: actions/deploy-pages@v4
