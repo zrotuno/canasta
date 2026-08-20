@@ -240,6 +240,14 @@ export function applyMove(state, move) {
   const player = currentPlayer(next);
   const team = currentTeam(next);
 
+  // A move made over the network says which seat made it. Every move but the
+  // answer to a question belongs to the player whose turn it is, and that is
+  // checked here rather than in the board, so a stale phone or a second tap
+  // cannot play somebody else's turn for them.
+  if (move.by !== undefined && move.type !== 'answerPartner' && move.by !== next.turn) {
+    throw new Error(`It is ${player.name}'s turn, not yours.`);
+  }
+
   switch (move.type) {
     case 'draw': return doDraw(next, player);
     case 'pass': return doPass(next);
@@ -301,6 +309,9 @@ function doAskPartner(next, player) {
 
 function doAnswerPartner(next, move) {
   if (!next.permission) throw new Error('Nobody has asked to go out.');
+  if (move.by !== undefined && move.by !== next.permission.partner) {
+    throw new Error('Only the partner who was asked can answer.');
+  }
   if (next.permission.answer !== null) throw new Error('That question has already been answered.');
   if (typeof move.yes !== 'boolean') throw new Error('Answer yes or no.');
   next.permission.answer = move.yes ? 'yes' : 'no';

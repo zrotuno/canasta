@@ -2,6 +2,7 @@
 import './melds.test.js';
 import './game.test.js';
 import './audit.test.js';
+import './replay.test.js';
 import { report } from './harness.js';
 
 report();

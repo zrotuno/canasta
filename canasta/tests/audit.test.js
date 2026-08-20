@@ -159,3 +159,31 @@ test('you only get to ask once, and only after drawing', () => {
   try { applyMove(early, { type: 'askPartner' }); } catch (e) { second = e.message; }
   ok(second.includes('after you have drawn'), `got: ${second}`);
 });
+
+// ------------------------------------------------ moves made over a network
+
+test('a move stamped with the wrong seat is refused', () => {
+  const s = createGame({ seed: 9 });          // North to play
+  let message = '';
+  try { applyMove(s, { type: 'draw', by: 2 }); } catch (e) { message = e.message; }
+  ok(message.includes("turn"), `expected a turn complaint, got: ${message}`);
+
+  const fine = applyMove(s, { type: 'draw', by: 0 });
+  eq(fine.phase, 'play', 'the seat whose turn it is may play');
+});
+
+test('an unstamped move is still accepted, so a local game needs no seats', () => {
+  const s = createGame({ seed: 9 });
+  eq(applyMove(s, { type: 'draw' }).phase, 'play');
+});
+
+test('only the partner who was asked may answer', () => {
+  const { s } = readyToGoOut();
+  const asked = applyMove(s, { type: 'askPartner', by: 0 });
+  let message = '';
+  try { applyMove(asked, { type: 'answerPartner', yes: true, by: 1 }); } catch (e) { message = e.message; }
+  ok(message.includes('partner who was asked'), `got: ${message}`);
+
+  const proper = applyMove(asked, { type: 'answerPartner', yes: true, by: 2 });
+  eq(proper.permission.answer, 'yes');
+});

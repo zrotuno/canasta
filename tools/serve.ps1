@@ -17,26 +17,45 @@ $mime = @{
 
 while ($listener.IsListening) {
   $ctx = $listener.GetContext()
-  $rel = [Uri]::UnescapeDataString($ctx.Request.Url.LocalPath).TrimStart('/')
-  if ($rel -eq '' -or $rel.EndsWith('/')) { $rel += 'index.html' }
-  $file = Join-Path $Root $rel
 
-  # Refuse anything that escapes the project root.
-  $full = [IO.Path]::GetFullPath($file)
-  if (-not $full.StartsWith([IO.Path]::GetFullPath($Root))) {
-    $ctx.Response.StatusCode = 403
-  } elseif (Test-Path $full -PathType Leaf) {
-    $ext = [IO.Path]::GetExtension($full).ToLower()
-    $type = if ($mime.ContainsKey($ext)) { $mime[$ext] } else { 'application/octet-stream' }
-    $bytes = [IO.File]::ReadAllBytes($full)
-    $ctx.Response.ContentType = "$type; charset=utf-8"
-    $ctx.Response.Headers.Add('Cache-Control', 'no-store')
-    # Without an explicit length the response goes out chunked, which service
-    # worker script fetches refuse.
-    $ctx.Response.ContentLength64 = $bytes.Length
-    $ctx.Response.OutputStream.Write($bytes, 0, $bytes.Length)
-  } else {
-    $ctx.Response.StatusCode = 404
+  # One bad request must never take the server down with it. A browser that
+  # cancels a request mid-flight -- which it does constantly while a page is
+  # loading -- used to throw here and kill the response, and a failed script
+  # fetch is exactly what makes a service worker serve a stale copy instead.
+  try {
+    $rel = [Uri]::UnescapeDataString($ctx.Request.Url.LocalPath).TrimStart('/')
+    if ($rel -eq '' -or $rel.EndsWith('/')) { $rel += 'index.html' }
+    $file = Join-Path $Root $rel
+
+    # Refuse anything that escapes the project root.
+    $full = [IO.Path]::GetFullPath($file)
+    if (-not $full.StartsWith([IO.Path]::GetFullPath($Root))) {
+      $ctx.Response.StatusCode = 403
+      $ctx.Response.Close()
+    } elseif (Test-Path $full -PathType Leaf) {
+      $ext = [IO.Path]::GetExtension($full).ToLower()
+      $type = if ($mime.ContainsKey($ext)) { $mime[$ext] } else { 'application/octet-stream' }
+      $bytes = [IO.File]::ReadAllBytes($full)
+      $ctx.Response.ContentType = "$type; charset=utf-8"
+      $ctx.Response.Headers.Add('Cache-Control', 'no-store')
+
+      if ($ctx.Request.HttpMethod -eq 'HEAD') {
+        # A HEAD response carries the length but no body at all. Writing one
+        # anyway is a protocol violation, which is what used to be thrown here.
+        $ctx.Response.ContentLength64 = $bytes.Length
+        $ctx.Response.Close()
+      } else {
+        # Close(bytes, true) sets the length, writes, and closes as one step,
+        # so the response can never disagree with itself. An explicit length
+        # matters: a chunked response is refused for service worker scripts.
+        $ctx.Response.Close($bytes, $true)
+      }
+    } else {
+      $ctx.Response.StatusCode = 404
+      $ctx.Response.Close()
+    }
+  } catch {
+    Write-Host "  $($ctx.Request.HttpMethod) $($ctx.Request.Url.LocalPath) -- $($_.Exception.Message)"
+    try { $ctx.Response.Abort() } catch { }
   }
-  $ctx.Response.Close()
 }

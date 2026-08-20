@@ -55,6 +55,21 @@
     border: 1px solid var(--line); background: rgba(0,0,0,.25); color: var(--text);
   }
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dedication { text-align: center; color: var(--muted); font: italic 400 14px/1.6 Georgia, serif; margin: -14px 0 24px; }
+  .notice { min-height: 18px; margin: 10px 0 4px; font-size: 13px; color: var(--gold); text-align: center; }
+  .notice.bad { color: #ffb4a8; }
+
+  /* ------------------------------------------------------------- lobby */
+  .code { font: 700 inherit/1 ui-monospace, monospace; letter-spacing: .22em; color: var(--gold); }
+  .seats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
+  .seat {
+    text-align: left; line-height: 1.35; padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .seat .who { font-weight: 600; }
+  .seat .where { font-size: 11px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; font-weight: 500; }
+  .seat.mine { border-color: var(--gold); background: rgba(216,165,58,.14); }
+  .seat.taken:not(.mine) { opacity: .62; cursor: default; }
   .team-label { font-size: 12px; color: var(--gold); letter-spacing: .1em; text-transform: uppercase; margin: 18px 0 2px; }
 
   button {
@@ -173,37 +188,43 @@
   <section id="title" class="screen">
     <h1>Canasta</h1>
     <p class="flourish">Fifty Years</p>
+    <p class="dedication">Tim &amp; Jonelle · 18 September 1976</p>
 
-    <div class="team-label">Partnership one</div>
+    <div><label for="my-name">Your name</label>
+      <input type="text" id="my-name" placeholder="Who's playing?" autocomplete="off"></div>
+
+    <button class="primary wide" id="create">Start a new table</button>
+
+    <div class="team-label">Or join one</div>
     <div class="pair">
-      <div><label for="p0">Player</label><input type="text" id="p0" placeholder="North" autocomplete="off"></div>
-      <div><label for="p2">Partner</label><input type="text" id="p2" placeholder="South" autocomplete="off"></div>
+      <div><label for="join-code">Table code</label>
+        <input type="text" id="join-code" placeholder="ABCD" maxlength="4"
+               autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
+      <div><label>&nbsp;</label><button class="wide" id="join">Join</button></div>
     </div>
 
-    <div class="team-label">Partnership two</div>
-    <div class="pair">
-      <div><label for="p1">Player</label><input type="text" id="p1" placeholder="East" autocomplete="off"></div>
-      <div><label for="p3">Partner</label><input type="text" id="p3" placeholder="West" autocomplete="off"></div>
-    </div>
-
-    <p style="color:var(--muted); font-size:13px; margin:18px 0 12px">
-      Partners sit opposite each other. Pass the phone around the table — each
-      player sees a hand-over screen before their turn.
-    </p>
-    <button class="primary wide" id="start">Deal the first hand</button>
+    <p class="notice" id="title-error"></p>
     <footer>Game to 5000 · <a href="./tests/">engine tests</a></footer>
   </section>
 
-  <!-- ---------------------------------------------------------- pass -->
-  <section id="pass" class="screen" hidden>
+  <!-- ---------------------------------------------------------- lobby -->
+  <section id="lobby" class="screen" hidden>
     <div class="centered">
-      <div class="card back" style="margin:0 auto 22px; --card-w:96px">
+      <div class="card back" style="margin:0 auto 18px; --card-w:88px">
         <span class="fifty">50</span><span class="years">years</span>
       </div>
-      <h2 id="pass-text">Pass the phone</h2>
-      <p>Nobody else should be looking.</p>
-      <button class="primary wide" id="ready">I have it</button>
+      <h2>Table <span id="lobby-code" class="code"></span></h2>
+      <p>Read the code out. Everyone else taps <em>Join</em> and types it in.</p>
     </div>
+
+    <div class="team-label">Partnership one</div>
+    <div class="seats" id="seats-0"></div>
+    <div class="team-label">Partnership two</div>
+    <div class="seats" id="seats-1"></div>
+
+    <p class="notice" id="lobby-error"></p>
+    <button class="primary wide" id="deal" disabled>Waiting for four players</button>
+    <footer>Partners sit opposite each other.</footer>
   </section>
 
   <!-- ---------------------------------------------------------- board -->
@@ -269,8 +290,22 @@
 <script type="module">
   import { boot } from './src/ui/board.js';
   boot();
+
+  // The service worker is what makes this installable and playable offline,
+  // but it must not run while developing: the local server answers one request
+  // at a time, so a page load can outrun it, and the worker then quietly falls
+  // back to a cached copy. That means editing a file and seeing the old one.
+  const local = ['localhost', '127.0.0.1'].includes(location.hostname);
   if ('serviceWorker' in navigator) {
-    addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+    if (local) {
+      navigator.serviceWorker.getRegistrations()
+        .then((regs) => regs.forEach((r) => r.unregister()))
+        .then(() => caches.keys())
+        .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+        .catch(() => {});
+    } else {
+      addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+    }
   }
 </script>
 </body>

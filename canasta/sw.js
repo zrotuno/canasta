@@ -3,7 +3,7 @@
 // Makes the game installable on Android and iOS home screens and lets it open
 // without a connection once visited. Bump CACHE when shipping, or phones will
 // keep serving the previous copy.
-const CACHE = 'canasta-v1';
+const CACHE = 'canasta-v2';
 
 const SHELL = [
   './',
@@ -13,6 +13,9 @@ const SHELL = [
   './src/engine/melds.js',
   './src/engine/game.js',
   './src/ui/board.js',
+  './src/net/room.js',
+  './src/net/replay.js',
+  './src/net/firebase-config.js',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
   './assets/icons/apple-touch-icon.png',

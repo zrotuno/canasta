@@ -1,13 +1,20 @@
-// Canasta board: four players sharing one phone.
+// Canasta board: four players, four phones, one table.
 //
 // Cards are tapped to select. Selected cards are grouped into melds in a
 // staging tray before being laid down together, because an opening meld often
 // has to reach its minimum across two or three melds at once — the engine
 // takes them as a single move, so the UI builds that move up visibly.
+//
+// Nothing here owns the game. The game is a seed and a list of moves in
+// Firestore; this rebuilds it on every change and sends moves back. A move is
+// checked against the engine locally first, so an illegal one is refused
+// instantly rather than after a round trip.
 
-import { createGame, applyMove, canTakePile, pileBlockedReason, topDiscard,
-         teamIndexOf, teamCanastas, meldedValue } from '../engine/game.js';
+import { applyMove, canTakePile, pileBlockedReason, topDiscard,
+         teamIndexOf, teamCanastas, meldedValue, mustTakePile } from '../engine/game.js';
 import { label, isWild, isRed, cardValue, JOKER } from '../engine/cards.js';
+import { rebuild, NEW_HAND } from '../net/replay.js';
+import * as net from '../net/room.js';
 
 const SUIT = { S: '♠', H: '♥', D: '♦', C: '♣', X: '★' };
 const RANK_NAME = { 1: 'Aces', 11: 'Jacks', 12: 'Queens', 13: 'Kings', B3: 'Black threes' };
@@ -17,12 +24,22 @@ let selected = new Set();
 let staged = [];            // { to, ids }
 let message = '';
 let isError = false;
-let handNumber = 0;
+
+let code = null;            // the table this browser is at
+let doc = null;             // the raw Firestore document, as last seen
+let mySeat = null;          // 0..3, or null while still standing up
+let sending = false;        // one move in flight at a time
+let shownHand = -1;         // which hand's scores the handover screen is for
 
 const $ = (id) => document.getElementById(id);
 const stagedIds = () => new Set(staged.flatMap((g) => g.ids));
-const me = () => game.players[game.turn];
-const myTeam = () => game.teams[teamIndexOf(game.turn)];
+
+// "Me" is the seat this phone is sitting in, not whoever is to play. That one
+// change is most of what separates this from a pass-the-phone game.
+const seatOf = () => (mySeat === null ? game.turn : mySeat);
+const me = () => game.players[seatOf()];
+const myTeam = () => game.teams[teamIndexOf(seatOf())];
+const myTurn = () => mySeat !== null && game.turn === mySeat && !game.handOver;
 const cardById = (id) => me().hand.find((c) => c.id === id);
 
 const rankName = (rank) => RANK_NAME[rank] ?? `${rank}s`;
@@ -80,7 +97,7 @@ function renderScoreboard() {
 }
 
 function renderMelds() {
-  const mine = teamIndexOf(game.turn);
+  const mine = teamIndexOf(seatOf());
   const canDrop = selected.size > 0;
 
   for (const [containerId, teamId] of [['melds-us', mine], ['melds-them', 1 - mine]]) {
@@ -116,7 +133,7 @@ function renderCentre() {
   const bits = [];
   if (game.frozen) bits.push('<span class="badge">frozen</span>');
   if (blocked) bits.push(`<div style="font-size:13px;color:var(--muted);margin-top:6px">${blocked}</div>`);
-  else {
+  else if (myTurn()) {
     const check = canTakePile(game);
     bits.push(`<div style="font-size:13px;color:${check.ok ? 'var(--gold)' : 'var(--muted)'};margin-top:6px">`
       + `${check.ok ? 'You can take this pile.' : check.reason}</div>`);
@@ -178,7 +195,37 @@ function renderActions() {
   const bar = $('actions');
   const team = myTeam();
 
+  // Your partner has asked to go out and it is your call to make.
+  const asked = game.permission;
+  if (asked && asked.answer === null && asked.partner === mySeat) {
+    bar.replaceChildren(
+      button(`${game.players[asked.asker].name} asks to go out`, { id: 'act-none', disabled: true }),
+      button('Yes, go out', { id: 'act-yes', className: 'gold' }),
+      button('No, wait', { id: 'act-no', className: 'primary' }),
+    );
+    return;
+  }
+
+  if (!myTurn()) {
+    bar.replaceChildren(button(`${game.players[game.turn].name} is playing`,
+      { id: 'act-none', disabled: true }));
+    return;
+  }
+
   if (game.phase === 'draw') {
+    // With the stock gone the pile is the only way to keep the hand alive.
+    if (game.stock.length === 0) {
+      const check = canTakePile(game);
+      const needsSelection = check.mode !== 'add-to-meld';
+      const short = needsSelection && selected.size === 0;
+      bar.replaceChildren(
+        button(short ? 'Take the pile (select cards first)' : 'Take the pile',
+          { id: 'act-take', className: 'gold', disabled: !check.ok || short }),
+        button('Group selected', { id: 'act-group', disabled: selected.size === 0 }),
+        button('End the hand', { id: 'act-pass', className: 'primary', disabled: mustTakePile(game) }),
+      );
+      return;
+    }
     const check = canTakePile(game);
     // Adding the top card to a meld your side already has needs nothing from
     // hand, so only the other routes require a selection.
@@ -199,12 +246,24 @@ function renderActions() {
   const openingShort = !team.hasMelded && staged.length > 0
     && staged.reduce((n, g) => n + g.ids.reduce((s, id) => s + cardValue(cardById(id)), 0), 0) < team.minimum;
 
-  bar.replaceChildren(
+  const actions = [
     button('Group selected', { id: 'act-group', disabled: selected.size === 0 }),
     button('Lay down', { id: 'act-lay', className: 'gold', disabled: staged.length === 0 || openingShort }),
     button('Take back', { id: 'act-clear', disabled: staged.length === 0 }),
     button('Discard', { id: 'act-discard', className: 'primary', disabled: selected.size !== 1 || staged.length > 0 }),
-  );
+  ];
+
+  // Asking is optional and the answer binds you, so it is only offered while
+  // there is still an answer to get.
+  if (!game.permission) {
+    actions.push(button('May I go out?', { id: 'act-ask' }));
+  } else if (game.permission.answer) {
+    const yes = game.permission.answer === 'yes';
+    actions.push(button(yes ? 'Partner said yes' : 'Partner said no',
+      { id: 'act-none', disabled: true }));
+  }
+
+  bar.replaceChildren(...actions);
 }
 
 function renderHint() {
@@ -213,7 +272,23 @@ function renderHint() {
 
   if (message) { hint.textContent = message; message = ''; isError = false; return; }
 
-  if (game.phase === 'draw') {
+  const waiting = game.permission && game.permission.answer === null;
+  if (waiting && game.permission.partner === mySeat) {
+    hint.textContent = `${game.players[game.permission.asker].name} wants to go out. `
+      + 'Say no if you are holding cards that would count against you.';
+    return;
+  }
+  if (!myTurn()) {
+    hint.textContent = waiting
+      ? `${game.players[game.permission.asker].name} is waiting on an answer from their partner.`
+      : `Waiting for ${game.players[game.turn].name} to play.`;
+    return;
+  }
+
+  if (game.phase === 'draw' && game.stock.length === 0) {
+    hint.textContent = 'The stock is gone. Take the pile if you can use the top card, '
+      + 'otherwise the hand ends here.';
+  } else if (game.phase === 'draw') {
     hint.textContent = 'Draw from the stock, or take the whole discard pile if you can '
       + 'use the top card straight away.';
   } else if (staged.length) {
@@ -236,14 +311,37 @@ function render() {
 // ---------------------------------------------------------------- screens
 
 function show(screen) {
-  for (const id of ['title', 'pass', 'board', 'handover', 'gameover']) $(id).hidden = (id !== screen);
+  for (const id of ['title', 'lobby', 'board', 'handover', 'gameover']) $(id).hidden = (id !== screen);
 }
 
-function toPass() {
-  selected = new Set();
-  staged = [];
-  $('pass-text').textContent = `Pass the phone to ${me().name}`;
-  show('pass');
+// ---------------------------------------------------------------- lobby
+
+const savedName = () => localStorage.getItem('canasta.name') ?? '';
+
+function seatButton(i) {
+  const seat = doc.seats[i];
+  const mine = Boolean(seat) && seat.id === net.myId();
+  const el = document.createElement('button');
+  el.className = 'seat';
+  if (seat) el.classList.add('taken');
+  if (mine) el.classList.add('mine');
+  el.disabled = Boolean(seat) && !mine;
+  el.dataset.seat = i;
+  el.innerHTML = `<span class="where">${net.SEAT_NAMES[i]}</span>`
+    + `<span class="who">${seat ? seat.name + (mine ? ' — you' : '') : 'Empty · sit here'}</span>`;
+  return el;
+}
+
+function renderLobby() {
+  $('lobby-code').textContent = code;
+  $('seats-0').replaceChildren(seatButton(0), seatButton(2));
+  $('seats-1').replaceChildren(seatButton(1), seatButton(3));
+
+  const filled = doc.seats.filter(Boolean).length;
+  const deal = $('deal');
+  deal.disabled = filled < 4;
+  deal.textContent = filled < 4 ? `Waiting for four players — ${filled} of 4` : 'Deal the first hand';
+  show('lobby');
 }
 
 function scoreRows(table, scores) {
@@ -262,37 +360,74 @@ function scoreRows(table, scores) {
     `<tr class="total"><td>Game score</td><td>${game.teams[0].score}</td><td>${game.teams[1].score}</td></tr>`;
 }
 
-function afterMove() {
+// ---------------------------------------------------------------- syncing
+
+// Everything the table does arrives here: the document changed, so rebuild the
+// game from it and put the right screen up. This is the only place `game` is
+// ever assigned, which is what keeps four phones telling the same story.
+function onRoom(latest) {
+  doc = latest;
+  const seat = latest.seats.findIndex((s) => s && s.id === net.myId());
+  mySeat = seat < 0 ? null : seat;
+
+  const { state, hand, error } = rebuild(latest);
+  game = state;
+  if (error) { message = error; isError = true; }
+
+  if (!latest.started) return renderLobby();
+
+  // A fresh hand clears anything left staged from the last one.
+  if (hand !== shownHand) { shownHand = hand; selected = new Set(); staged = []; }
+
   if (game.gameOver) {
     const winner = game.teams[0].score >= game.teams[1].score ? 0 : 1;
     const names = game.players.filter((p) => p.team === winner).map((p) => p.name).join(' & ');
     $('winner-text').textContent = `${names} win`;
     scoreRows($('final-scores'), game.lastHandScores);
-    show('gameover');
-    return;
+    return show('gameover');
   }
   if (game.handOver) {
     const out = game.outPlayer === null ? 'The stock ran out' : `${game.players[game.outPlayer].name} went out`;
     $('handover-title').textContent = out;
     scoreRows($('hand-scores'), game.lastHandScores);
-    show('handover');
-    return;
+    return show('handover');
   }
+
+  show('board');
   render();
 }
 
 // ---------------------------------------------------------------- actions
 
-function attempt(move) {
+// Checks the move against the engine before it goes anywhere, so a mistake is
+// refused in the engine's own words and without a round trip, then appends it
+// to the log. The board does not change until the change comes back down.
+async function send(raw) {
+  if (sending) return;
+  // Every move carries the seat that made it, so the engine can refuse one
+  // that arrives out of turn.
+  const move = mySeat === null ? raw : { ...raw, by: mySeat };
   try {
-    game = applyMove(game, move);
-    selected = new Set();
-    staged = [];
-    return true;
+    // Dealing the next hand is a marker in the log, not something the engine
+    // knows how to apply, so there is nothing to check it against.
+    if (move.type !== NEW_HAND) applyMove(game, move);
   } catch (err) {
     message = err.message;
     isError = true;
-    return false;
+    return render();
+  }
+
+  sending = true;
+  try {
+    await net.sendMove(code, move, doc.moves.length);
+    selected = new Set();
+    staged = [];
+  } catch (err) {
+    message = err.message;
+    isError = true;
+    render();
+  } finally {
+    sending = false;
   }
 }
 
@@ -325,12 +460,14 @@ function onBoardClick(event) {
 
 function onAction(event) {
   const id = event.target.id;
-  if (!id?.startsWith('act-')) return;
+  if (!id?.startsWith('act-') || id === 'act-none') return;
 
   switch (id) {
-    case 'act-draw':
-      if (attempt({ type: 'draw' })) return afterMove();
-      return render();
+    case 'act-draw': return send({ type: 'draw' });
+    case 'act-pass': return send({ type: 'pass' });
+    case 'act-ask': return send({ type: 'askPartner' });
+    case 'act-yes': return send({ type: 'answerPartner', yes: true });
+    case 'act-no': return send({ type: 'answerPartner', yes: false });
 
     case 'act-take': {
       // The top card is melded with the selection as one group. With nothing
@@ -342,8 +479,7 @@ function onAction(event) {
         ? { to: top.rank, cards: [top.id] }
         : [...selected, top.id];
       const groups = [...staged.map((g) => ({ to: g.to, cards: g.ids })), topGroup];
-      if (attempt({ type: 'takePile', groups })) return afterMove();
-      return render();
+      return send({ type: 'takePile', groups });
     }
 
     case 'act-group':
@@ -355,43 +491,108 @@ function onAction(event) {
       staged = [];
       return render();
 
-    case 'act-lay': {
-      const groups = staged.map((g) => ({ to: g.to, cards: g.ids }));
-      if (attempt({ type: 'meld', groups })) return afterMove();
-      return render();
-    }
+    case 'act-lay':
+      return send({ type: 'meld', groups: staged.map((g) => ({ to: g.to, cards: g.ids })) });
 
     case 'act-discard': {
       const [card] = [...selected];
-      const ended = attempt({ type: 'discard', card });
-      if (!ended) return render();
-      if (game.handOver || game.gameOver) return afterMove();
-      return toPass();
+      return send({ type: 'discard', card });
     }
   }
 }
 
-function startGame(scores = [0, 0]) {
-  const names = [0, 1, 2, 3].map((i) => $(`p${i}`).value.trim() || ['North', 'East', 'South', 'West'][i]);
-  game = createGame({ players: names, scores, firstPlayer: handNumber % 4 });
-  toPass();
+// ---------------------------------------------------------------- joining
+
+function fail(id, text) {
+  const el = $(id);
+  el.textContent = text;
+  el.classList.add('bad');
+}
+
+// Starts listening to a table. Every later change to the board comes from
+// onRoom, never from here.
+function watch(joined) {
+  code = joined;
+  location.hash = joined;
+  net.watchRoom(joined, onRoom, (err) => fail('title-error', err.message));
+}
+
+async function onCreate() {
+  const name = $('my-name').value.trim();
+  if (!name) return fail('title-error', 'Put your name in first.');
+  localStorage.setItem('canasta.name', name);
+  try {
+    const made = await net.createRoom();
+    await net.claimSeat(made, 0, name);
+    watch(made);
+  } catch (err) {
+    fail('title-error', `Could not reach the table: ${err.message}`);
+  }
+}
+
+async function onJoin() {
+  const name = $('my-name').value.trim();
+  const wanted = $('join-code').value.trim().toUpperCase();
+  if (!name) return fail('title-error', 'Put your name in first.');
+  if (wanted.length !== 4) return fail('title-error', 'A table code is four letters.');
+  localStorage.setItem('canasta.name', name);
+
+  try {
+    if (!(await net.roomExists(wanted))) return fail('title-error', `There is no table called ${wanted}.`);
+    watch(wanted);
+  } catch (err) {
+    fail('title-error', `Could not reach the table: ${err.message}`);
+  }
+}
+
+async function onSeatClick(event) {
+  const node = event.target.closest('[data-seat]');
+  if (!node) return;
+  const seat = Number(node.dataset.seat);
+  try {
+    await net.claimSeat(code, seat, savedName() || net.SEAT_NAMES[seat]);
+    $('lobby-error').textContent = '';
+  } catch (err) {
+    fail('lobby-error', err.message);
+  }
 }
 
 export function boot() {
-  $('start').addEventListener('click', () => { handNumber = 0; startGame(); });
-  $('ready').addEventListener('click', () => { show('board'); render(); });
-  $('next-hand').addEventListener('click', () => {
-    handNumber += 1;
-    startGame(game.teams.map((t) => t.score));
-  });
-  $('new-game').addEventListener('click', () => show('title'));
+  $('my-name').value = savedName();
+  $('create').addEventListener('click', onCreate);
+  $('join').addEventListener('click', onJoin);
+  $('seats-0').addEventListener('click', onSeatClick);
+  $('seats-1').addEventListener('click', onSeatClick);
+  $('deal').addEventListener('click', () =>
+    net.startGame(code).catch((err) => fail('lobby-error', err.message)));
+  $('next-hand').addEventListener('click', () => send({ type: NEW_HAND }));
+  $('new-game').addEventListener('click', () =>
+    net.restart(code).catch((err) => fail('lobby-error', err.message)));
   $('board').addEventListener('click', onBoardClick);
   $('actions').addEventListener('click', onAction);
+
+  // Following a shared link fills the code in, so joining is name-then-tap.
+  const fromLink = location.hash.replace('#', '').toUpperCase();
+  if (/^[A-Z]{4}$/.test(fromLink)) $('join-code').value = fromLink;
+
   show('title');
 
-  // Local development aid: lets a test driver read the engine state the board
-  // is showing. Never exposed off this machine.
+  // A phone that locked, or a tab that reloaded itself, comes straight back to
+  // the table it was already at. The seat is held by the stored player id, so
+  // there is nothing to type and nothing to lose.
+  if (/^[A-Z]{4}$/.test(fromLink) && savedName()) onJoin();
+
+  // Local development aid: lets a test driver read the game the board is
+  // showing, and drive a seat without tapping. Never exposed off this machine.
   if (['localhost', '127.0.0.1'].includes(location.hostname)) {
-    window.__canasta = { state: () => game, staged: () => staged };
+    window.__canasta = {
+      state: () => game,
+      staged: () => staged,
+      seat: () => mySeat,
+      code: () => code,
+      send,
+      sit: (i, name) => net.claimSeat(code, i, name),
+      watch,
+    };
   }
 }

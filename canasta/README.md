@@ -4,9 +4,31 @@ Four-player partnership Canasta, themed for a golden wedding anniversary. A web
 app: one link that plays in any browser and installs to the home screen on
 iPhone and Android.
 
-Four players share one device. Partners sit opposite each other, and a
-hand-over screen covers the table between turns so nobody sees another player's
-cards.
+Four players, four phones. One person starts a table and reads out its
+four-letter code; everyone else types it in and takes a seat. Partners sit
+opposite each other, and each phone shows only its own hand.
+
+## How four phones stay in step
+
+The document in Firestore holds two things: a seed, and the list of moves made
+so far. Nothing else. Every phone runs the same engine over the same seed and
+the same moves, so every phone arrives at the same game — the deal included,
+since the shuffle is seeded rather than random.
+
+That means there is no server to write, no second copy of the rules to keep
+honest, and no Cloud Functions bill. A move is checked against the engine on
+the phone that made it, then appended to the log inside a transaction that
+refuses it if anybody else got there first. Moves carry the seat that made
+them, so a phone cannot play somebody else's turn.
+
+It also means a player who closes the tab, locks the phone or walks out of
+range loses nothing at all: the seat is held by an id in local storage, and
+reopening the link replays the whole game from the log and puts them back where
+they were.
+
+The one thing this design does not do is hide anything from a determined
+player: every phone can replay the log, so the cards are all there in memory.
+For a family game that is the right trade.
 
 ## Rules as implemented
 
@@ -57,7 +79,8 @@ No build step and no toolchain. Serve the repository and open the folder:
 powershell -ExecutionPolicy Bypass -File tools\serve.ps1
 ```
 
-- Game: <http://localhost:8080/canasta/>
+- Game: <http://localhost:8080/canasta/>  (the service worker is switched off
+  on localhost, so an edit is always the file you just saved)
 - Engine tests: <http://localhost:8080/canasta/tests/>
 
 To regenerate the app icons:
@@ -72,7 +95,10 @@ powershell -ExecutionPolicy Bypass -File canasta\tools\make-icons.ps1
 src/engine/cards.js   card model, values, wild and three classification
 src/engine/melds.js   meld validity and canasta scoring
 src/engine/game.js    deal, turns, the discard pile, going out, scoring
-src/ui/board.js       the four-player board
+src/net/room.js       the Firestore document: seats, the move log, the lobby
+src/net/replay.js     rebuilding a game from a seed and a list of moves
+src/ui/board.js       the board, the lobby and everything you tap
+tools/bot.js          a crude auto-player, for driving whole hands in testing
 tests/                browser-run suites
 ```
 
