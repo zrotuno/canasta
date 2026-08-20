@@ -9,17 +9,9 @@ import {
   isCanasta, isNaturalCanasta, canastaBonus, isBlackThreeMeld,
 } from '../src/engine/melds.js';
 
-const results = [];
-const test = (name, fn) => {
-  try { fn(); results.push({ name, ok: true }); }
-  catch (e) { results.push({ name, ok: false, error: e.message }); }
-};
-const eq = (actual, expected, what = '') => {
-  const a = JSON.stringify(actual), b = JSON.stringify(expected);
-  if (a !== b) throw new Error(`${what} expected ${b}, got ${a}`);
-};
-const ok = (cond, what) => { if (!cond) throw new Error(what || 'expected truthy'); };
-const no = (cond, what) => { if (cond) throw new Error(what || 'expected falsy'); };
+import { test, eq, ok, no, section } from './harness.js';
+
+section('Cards and melds');
 
 let seq = 0;
 const c = (rank, suit = 'S') => ({ id: `t${seq++}`, rank, suit });
@@ -155,17 +147,3 @@ test('a natural canasta scores 500 and a mixed one 300', () => {
   eq(canastaBonus(natural.slice(0, 6)), 0, 'no bonus below seven');
 });
 
-// ------------------------------------------------------------ report
-
-const passed = results.filter((r) => r.ok).length;
-const failed = results.length - passed;
-
-document.getElementById('out').innerHTML = results.map((r) =>
-  `<div class="${r.ok ? 'pass' : 'fail'}">${r.ok ? 'PASS' : 'FAIL'} — ${r.name}` +
-  `${r.ok ? '' : `<div class="err">${r.error}</div>`}</div>`).join('');
-
-const summary = `${passed} passed, ${failed} failed, ${results.length} total`;
-document.getElementById('summary').textContent = summary;
-document.title = failed ? `FAIL (${failed})` : `PASS (${passed})`;
-console.log(`TEST_SUMMARY ${summary}`);
-results.filter((r) => !r.ok).forEach((r) => console.error(`FAILED: ${r.name} :: ${r.error}`));
