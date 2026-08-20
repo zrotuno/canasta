@@ -52,12 +52,18 @@ service cloud.firestore {
 
       // Somebody played. Exactly one move joins the end of the log, and
       // everything already in it stays exactly as it was.
+      //
+      // The prefix check is skipped when the log is empty, because there is no
+      // history to protect yet and a zero-length slice is not something the
+      // rules engine will evaluate: left unguarded it denied the first move of
+      // every game, which is to say all of them.
       function onePlayed(before, after) {
         return after.seats == before.seats
             && after.seed == before.seed
             && after.started == before.started
             && after.moves.size() == before.moves.size() + 1
-            && after.moves[0:before.moves.size()] == before.moves;
+            && (before.moves.size() == 0
+                || after.moves[0:before.moves.size()] == before.moves);
       }
 
       // The table left the lobby.

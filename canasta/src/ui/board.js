@@ -423,6 +423,10 @@ async function send(raw) {
     selected = new Set();
     staged = [];
   } catch (err) {
+    // Logged as well as shown: a write refused by the database says only
+    // "missing or insufficient permissions", and the console is where that
+    // can be told apart from an ordinary illegal move.
+    console.error('move refused', move, err);
     message = err.message;
     isError = true;
     render();
