@@ -582,6 +582,15 @@ export function boot() {
   // there is nothing to type and nothing to lose.
   if (/^[A-Z]{4}$/.test(fromLink) && savedName()) onJoin();
 
+  // Tapping a shared link while the game is already open changes the address
+  // without reloading anything, so the table has to be picked up by hand.
+  // Ignored when the change is this page announcing the table it just joined.
+  addEventListener('hashchange', () => {
+    const wanted = location.hash.replace('#', '').toUpperCase();
+    if (!/^[A-Z]{4}$/.test(wanted) || wanted === code) return;
+    location.reload();
+  });
+
   // Local development aid: lets a test driver read the game the board is
   // showing, and drive a seat without tapping. Never exposed off this machine.
   if (['localhost', '127.0.0.1'].includes(location.hostname)) {

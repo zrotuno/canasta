@@ -56,6 +56,41 @@
   }
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .dedication { text-align: center; color: var(--muted); font: italic 400 14px/1.6 Georgia, serif; margin: -14px 0 24px; }
+
+  /* ----------------------------------------------------- the golden part */
+
+  /* Gilt lettering, with the flat gold kept as the fallback: without the
+     clip the transparent fill would leave the title invisible. */
+  .gilt { color: var(--gold); }
+  @supports ((background-clip: text) or (-webkit-background-clip: text)) {
+    .gilt {
+      background-image: linear-gradient(176deg, #fbeec2 0%, #e7c76b 34%, #b8862b 58%, #f3dea2 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+    }
+  }
+
+  .medallion {
+    width: 104px; height: 104px; margin: 8px auto 12px; border-radius: 50%;
+    display: grid; place-items: center; text-align: center;
+    background: radial-gradient(circle at 50% 26%, rgba(216,165,58,.30), rgba(216,165,58,.05) 60%, transparent 72%);
+    border: 1px solid rgba(216,165,58,.55);
+    box-shadow: 0 0 0 5px rgba(216,165,58,.09), inset 0 0 24px rgba(216,165,58,.14);
+  }
+  .medallion .n { font: 700 42px/1 Georgia, "Times New Roman", serif; color: var(--gold); }
+  .medallion .w { font: 400 9px/1 Georgia, serif; letter-spacing: .34em; text-transform: uppercase; color: var(--gold-dim); margin-top: 4px; }
+
+  /* A rule with a word set into it, the way an invitation does it. */
+  .rule { display: flex; align-items: center; gap: 12px; max-width: 340px; margin: 12px auto 16px; }
+  .rule::before, .rule::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+  }
+  .rule span { font: 400 11px/1 Georgia, serif; letter-spacing: .32em; text-transform: uppercase; color: var(--gold); }
+
+  .names { text-align: center; margin: 0; font: 400 clamp(19px, 5.6vw, 25px)/1.35 Georgia, "Times New Roman", serif; color: var(--paper); }
+  .names em { font-style: normal; color: var(--gold); padding: 0 .18em; }
+  .occasion { text-align: center; margin: 2px 0 24px; font: italic 400 13px/1.5 Georgia, serif; color: var(--muted); letter-spacing: .05em; }
   .notice { min-height: 18px; margin: 10px 0 4px; font-size: 13px; color: var(--gold); text-align: center; }
   .notice.bad { color: #ffb4a8; }
 
@@ -186,9 +221,11 @@
 
   <!-- ---------------------------------------------------------- title -->
   <section id="title" class="screen">
-    <h1>Canasta</h1>
-    <p class="flourish">Fifty Years</p>
-    <p class="dedication">Tim &amp; Jonelle · 18 September 1976</p>
+    <div class="medallion"><div><div class="n">50</div><div class="w">years</div></div></div>
+    <h1 class="gilt">Canasta</h1>
+    <div class="rule"><span>Fifty Years</span></div>
+    <p class="names">Tim <em>&amp;</em> Jonelle</p>
+    <p class="occasion">married the eighteenth of September, 1976</p>
 
     <div><label for="my-name">Your name</label>
       <input type="text" id="my-name" placeholder="Who's playing?" autocomplete="off"></div>
@@ -271,6 +308,7 @@
   <section id="handover" class="screen" hidden>
     <div class="centered">
       <h2 id="handover-title">Hand complete</h2>
+      <div class="rule"><span>the score so far</span></div>
       <table class="scores" id="hand-scores"></table>
       <button class="primary wide" id="next-hand">Deal the next hand</button>
     </div>
@@ -279,7 +317,11 @@
   <!-- ---------------------------------------------------------- game over -->
   <section id="gameover" class="screen" hidden>
     <div class="centered">
-      <h2 id="winner-text">Game over</h2>
+      <div class="medallion" style="width:84px;height:84px">
+        <div><div class="n" style="font-size:32px">50</div><div class="w">years</div></div>
+      </div>
+      <h2 id="winner-text" class="gilt">Game over</h2>
+      <div class="rule"><span>Tim &amp; Jonelle · 1976–2026</span></div>
       <table class="scores" id="final-scores"></table>
       <button class="primary wide" id="new-game">New game</button>
     </div>
