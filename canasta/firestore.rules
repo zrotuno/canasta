@@ -1,0 +1,100 @@
+rules_version = '2';
+
+// Security rules for Canasta — Fifty Years.
+//
+// Paste these into the Firebase console under Firestore Database → Rules, then
+// Publish. They replace "test mode", which lets anybody on the internet read,
+// write or wipe anything, and which stops working thirty days after the project
+// was made.
+//
+// There are no accounts in this game: anyone holding a four-letter table code
+// can play, which is the whole point of reading it out across a room. So these
+// rules do not ask who you are. They constrain what may happen instead, and
+// that turns out to be most of the value:
+//
+//   - nothing outside a table is reachable at all
+//   - a table can never be deleted
+//   - history can never be rewritten; a move may only be appended, one at a
+//     time, and the seed a hand was dealt from cannot be altered underneath it
+//   - a document that is not shaped like a game is refused outright
+//
+// The worst a stranger who guessed a code could do is join the table and play
+// badly, which is also true of anyone standing in the room.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /games/{code} {
+
+      function fields() {
+        return ['seed', 'createdAt', 'seats', 'moves', 'started'];
+      }
+
+      // A game document and nothing else. Numbers are checked as `number`
+      // rather than `int` on purpose: the browser SDK stores a plain JavaScript
+      // number as a double, so `is int` would reject perfectly good games.
+      function wellFormed(d) {
+        return d.keys().hasOnly(fields())
+            && d.keys().hasAll(fields())
+            && d.seed is number
+            && d.createdAt is number
+            && d.seats is list && d.seats.size() == 4
+            && d.moves is list && d.moves.size() <= 2000
+            && d.started is bool;
+      }
+
+      // Somebody sat down, stood up or swapped seats. The hand is untouched.
+      function seatsOnly(before, after) {
+        return after.moves == before.moves
+            && after.seed == before.seed
+            && after.started == before.started;
+      }
+
+      // Somebody played. Exactly one move joins the end of the log, and
+      // everything already in it stays exactly as it was.
+      function onePlayed(before, after) {
+        return after.seats == before.seats
+            && after.seed == before.seed
+            && after.started == before.started
+            && after.moves.size() == before.moves.size() + 1
+            && after.moves[0:before.moves.size()] == before.moves;
+      }
+
+      // The table left the lobby.
+      function dealt(before, after) {
+        return before.started == false && after.started == true
+            && after.moves == before.moves
+            && after.seed == before.seed;
+      }
+
+      // A new game at the same table: the log is emptied and a fresh seed is
+      // drawn, but the players stay where they are sitting.
+      function restarted(before, after) {
+        return after.started == false
+            && after.moves.size() == 0
+            && after.seats == before.seats;
+      }
+
+      allow read: if code.matches('^[A-Z]{4}$');
+
+      allow create: if code.matches('^[A-Z]{4}$')
+                    && wellFormed(request.resource.data)
+                    && request.resource.data.moves.size() == 0
+                    && request.resource.data.started == false;
+
+      allow update: if code.matches('^[A-Z]{4}$')
+                    && wellFormed(request.resource.data)
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && (
+                         seatsOnly(resource.data, request.resource.data)
+                      || onePlayed(resource.data, request.resource.data)
+                      || dealt(resource.data, request.resource.data)
+                      || restarted(resource.data, request.resource.data)
+                    );
+
+      // A table is never deleted, by anybody, ever. Nothing in the game asks
+      // to and a hand lost mid-play cannot be recovered.
+      allow delete: if false;
+    }
+  }
+}

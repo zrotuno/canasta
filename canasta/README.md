@@ -95,6 +95,7 @@ powershell -ExecutionPolicy Bypass -File canasta\tools\make-icons.ps1
 src/engine/cards.js   card model, values, wild and three classification
 src/engine/melds.js   meld validity and canasta scoring
 src/engine/game.js    deal, turns, the discard pile, going out, scoring
+firestore.rules       what the database will and will not allow
 src/net/room.js       the Firestore document: seats, the move log, the lobby
 src/net/replay.js     rebuilding a game from a seed and a list of moves
 src/ui/board.js       the board, the lobby and everything you tap
