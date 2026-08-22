@@ -112,6 +112,41 @@
     color: var(--muted); background: transparent; border-style: dashed;
   }
 
+  /* --------------------------------------------------- the heckler */
+  /* Floats above the pile rather than over it: whoever is to play still has
+     to be able to see the card they are deciding about. */
+  .pile-panel { position: relative; }
+  .taunt {
+    position: absolute; left: 2px; right: 2px; bottom: calc(100% + 6px);
+    z-index: 6; pointer-events: none;
+    padding: 12px 14px; border-radius: 13px;
+    border: 1px solid var(--gold-dim);
+    background: linear-gradient(180deg, rgba(24,72,53,.97), rgba(11,51,37,.99));
+    box-shadow: 0 12px 30px rgba(0,0,0,.5);
+    color: var(--paper); text-align: center;
+    font: 700 clamp(15px, 4.4vw, 21px)/1.28 Georgia, "Times New Roman", serif;
+    transform: rotate(-1.2deg);
+    animation: taunt-in .3s cubic-bezier(.2,1.5,.4,1) both;
+  }
+  .taunt[hidden] { display: none; }
+  /* A little tail, so it reads as something being said about the pile. */
+  .taunt::after {
+    content: ''; position: absolute; left: 50%; bottom: -7px; width: 12px; height: 12px;
+    transform: translateX(-50%) rotate(45deg);
+    background: rgba(11,51,37,.99);
+    border-right: 1px solid var(--gold-dim); border-bottom: 1px solid var(--gold-dim);
+  }
+  @keyframes taunt-in {
+    from { opacity: 0; transform: rotate(-1.2deg) translateY(10px) scale(.93); }
+    to   { opacity: 1; transform: rotate(-1.2deg) translateY(0) scale(1); }
+  }
+  .verdict {
+    margin: 0 auto 18px; max-width: 30em;
+    font: 700 clamp(15px, 4.4vw, 20px)/1.35 Georgia, "Times New Roman", serif;
+    color: var(--paper);
+  }
+  @media (prefers-reduced-motion: reduce) { .taunt { animation: none; } }
+
   /* ------------------------------------------------- what happened */
   .log {
     list-style: none; margin: 8px 0 0; padding: 0 2px 0 0;
@@ -318,7 +353,8 @@
       <div id="melds-them" class="row"></div>
     </div>
 
-    <div class="panel">
+    <div class="panel pile-panel">
+      <div class="taunt" id="taunt" hidden></div>
       <div class="center">
         <div class="stack">
           <div class="card back"><span class="fifty">50</span><span class="years">years</span></div>
@@ -365,6 +401,7 @@
   <section id="handover" class="screen" hidden>
     <div class="centered">
       <h2 id="handover-title">Hand complete</h2>
+      <p class="verdict" id="verdict"></p>
       <div class="rule"><span>the score so far</span></div>
       <table class="scores" id="hand-scores"></table>
       <button class="primary wide" id="next-hand">Deal the next hand</button>

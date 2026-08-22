@@ -547,3 +547,61 @@ test('a draw reports its count and its red threes, never its cards', () => {
   // The whole point: nothing in here identifies a card that went into a hand.
   no(JSON.stringify(entry).includes('id'), 'no card identity leaks into the log');
 });
+
+// ------------------------------------------------------ red threes, replaced
+
+test('a red three dealt into a hand is banked and replaced there and then', () => {
+  // Every seat still holds a full hand, and no red three is in any of them.
+  for (const seed of [71, 72, 73, 74, 75]) {
+    const s = createGame({ seed });
+    for (const p of s.players) {
+      eq(p.hand.length, s.config.handSize, `seed ${seed}: ${p.name} has a full hand`);
+      eq(p.hand.filter((x) => x.rank === THREE && (x.suit === 'H' || x.suit === 'D')).length, 0,
+        `seed ${seed}: no red three sitting in ${p.name}'s hand`);
+    }
+  }
+});
+
+test('a red three drawn from the stock is replaced, so the hand still grows by two', () => {
+  const s = createGame({ seed: 76 });
+  const before = s.players[0].hand.length;
+  const banked = s.teams[0].redThrees.length;
+  // Drawn from the end: an eight, then a red three, then a nine, then a ten.
+  s.stock = [c(10, 'C'), c(9, 'C'), c(THREE, 'D'), c(8, 'S')];
+  s.turn = 0;
+  s.phase = 'draw';
+
+  const after = applyMove(s, { type: 'draw', by: 0 });
+  eq(after.players[0].hand.length, before + 2, 'two real cards arrived');
+  eq(after.teams[0].redThrees.length, banked + 1, 'and the three went to the bank');
+  eq(after.stock.length, 1, 'three cards left the stock to deliver two');
+});
+
+test('a red three taken with the discard pile is banked and NOT replaced', () => {
+  const s = createGame({ seed: 77 });
+  const redThree = c(THREE, 'H');
+  const top = c(5, 'D');
+  // The only way a red three reaches the pile: turned up at the start of the
+  // hand, and buried when the next card was turned on top of it.
+  s.discard = [redThree, top];
+  s.frozen = true;
+  s.teams[0].hasMelded = true;
+  const banked = s.teams[0].redThrees.length;
+
+  const mine = [c(5, 'S'), c(5, 'C')];
+  s.players[0].hand = [...mine, c(8, 'H'), c(12, 'S')];
+  s.turn = 0;
+  s.phase = 'draw';
+
+  const before = s.players[0].hand.length;
+  const after = applyMove(s, {
+    type: 'takePile', by: 0, groups: [[...mine.map((x) => x.id), top.id]],
+  });
+
+  eq(after.teams[0].redThrees.length, banked + 1, 'the three was banked');
+  eq(after.players[0].hand.filter((x) => x.id === redThree.id).length, 0, 'and is not in hand');
+  // Four in hand, minus the two melded, plus the one other pile card. No
+  // replacement card was drawn for the three.
+  eq(after.players[0].hand.length, before - 2, 'nothing was drawn to replace it');
+  eq(after.stock.length, s.stock.length, 'the stock was never touched');
+});

@@ -15,6 +15,7 @@ import { applyMove, canTakePile, pileBlockedReason, topDiscard,
 import { label, isWild, isRed, cardValue, JOKER } from '../engine/cards.js';
 import { rebuild, NEW_HAND } from '../net/replay.js';
 import { chooseSafeMove } from '../ai/player.js';
+import { tauntForMove, tauntForHandEnd } from './taunts.js';
 import * as net from '../net/room.js';
 
 const SUIT = { S: '♠', H: '♥', D: '♦', C: '♣', X: '★' };
@@ -241,6 +242,39 @@ function describe(entry) {
   }
 }
 
+// The heckler speaks about the last notable thing that happened. Its index in
+// the log picks the line, so every phone at the table sees the same joke.
+//
+// It holds for a few seconds rather than strictly until the next action: a
+// computer plays its whole turn in under a second, which left a good line on
+// screen for about a quarter of one. A newer remark always displaces an older.
+const TAUNT_LINGER = 6500;
+let taunt = { index: -1, text: '', at: 0 };
+let tauntTimer = null;
+
+function renderTaunt() {
+  const box = $('taunt');
+  const entries = game.log ?? [];
+  clearTimeout(tauntTimer);
+
+  // The most recent thing worth a word, searching back over the last turn or
+  // two rather than only the very last move.
+  for (let i = entries.length - 1; i >= 0 && i > entries.length - 8; i--) {
+    if (i <= taunt.index) break;
+    const said = tauntForMove(entries[i], game, i);
+    if (said) { taunt = { index: i, text: said, at: Date.now() }; break; }
+  }
+
+  const fresh = taunt.index >= 0 && Date.now() - taunt.at < TAUNT_LINGER;
+  const showing = fresh && !game.handOver;
+
+  box.hidden = !showing;
+  if (showing) {
+    box.textContent = taunt.text;
+    tauntTimer = setTimeout(() => { if (game) renderTaunt(); }, TAUNT_LINGER - (Date.now() - taunt.at) + 50);
+  }
+}
+
 function renderLog() {
   const list = $('log');
   const count = $('log-count');
@@ -437,6 +471,7 @@ function render() {
   renderScoreboard();
   renderMelds();
   renderCentre();
+  renderTaunt();
   renderLog();
   renderHand();
   renderTray();
@@ -595,7 +630,12 @@ function onRoom(latest) {
   if (!latest.started) return renderLobby();
 
   // A fresh hand clears anything left staged from the last one.
-  if (hand !== shownHand) { shownHand = hand; selected = new Set(); staged = []; }
+  if (hand !== shownHand) {
+    shownHand = hand;
+    selected = new Set();
+    staged = [];
+    taunt = { index: -1, text: '', at: 0 };
+  }
 
   if (game.gameOver) {
     const winner = game.teams[0].score >= game.teams[1].score ? 0 : 1;
@@ -607,6 +647,10 @@ function onRoom(latest) {
   if (game.handOver) {
     const out = game.outPlayer === null ? 'The stock ran out' : `${game.players[game.outPlayer].name} went out`;
     $('handover-title').textContent = out;
+    const last = game.log[game.log.length - 1];
+    $('verdict').textContent = (last && last.move.type === 'handOver')
+      ? (tauntForHandEnd(last, game, game.log.length - 1) ?? '')
+      : '';
     scoreRows($('hand-scores'), game.lastHandScores);
     return show('handover');
   }

@@ -85,6 +85,9 @@ export function createGame({
     openedThisTurn: false,
     // Set while a player has asked their partner for leave to go out.
     permission: null,
+    // Who threw the card now on top, so the board can name them when the pile
+    // is carried off. Null while the turned-up card is still on top.
+    lastDiscarder: null,
     handOver: false, outPlayer: null, gameOver: false,
     lastHandScores: null, log: [],
   };
@@ -146,6 +149,15 @@ const goingOutNeeds = (state) =>
 
 // Card values on the table, before any bonus.
 export const meldedValue = (team) => teamMelds(team).reduce((n, m) => n + meldPoints(m), 0);
+
+// Which ranks are canastas right now, and which have just become one. The
+// board wants to know the moment a canasta is completed, and by whom.
+const canastaRanks = (team) => new Set(
+  Object.entries(team.melds).filter(([, m]) => isCanasta(m)).map(([rank]) => rank));
+
+const canastasSince = (team, before) => Object.entries(team.melds)
+  .filter(([rank, m]) => isCanasta(m) && !before.has(rank))
+  .map(([rank, m]) => ({ rank, natural: !m.some(isWild) }));
 
 // The pile is untouchable while a black three or a wild sits on top of it.
 export function pileBlockedReason(state) {
@@ -397,6 +409,7 @@ function doTakePile(next, player, team, move) {
   player.hand.push(top);
 
   const wasFirstMeld = !team.hasMelded;
+  const canastasBefore = canastaRanks(team);
   const built = entries.map((g) => ({ to: g.to, cards: takeFromHand(player.hand, g.ids) }));
 
   // A frozen pile demands two natural cards from hand alongside the top card.
@@ -422,12 +435,16 @@ function doTakePile(next, player, team, move) {
   next.tookPileThisTurn = true;
   next.meldedThisTurn = true;
   // How the pile was won matters to everyone watching, and settles the
-  // argument about whether a frozen pile should have gone at all.
+  // argument about whether a frozen pile should have gone at all. `from` is
+  // the player who threw the card that was carried off with it, who will want
+  // to be named.
   next.log.push({
     turn: next.turn,
     move: {
       type: 'takePile', count: pile.length, mode: check.mode,
       top: label(top), reds: buriedReds.length,
+      from: next.lastDiscarder,
+      made: canastasSince(team, canastasBefore),
     },
   });
   return next;
@@ -440,6 +457,7 @@ function doMeld(next, player, team, move) {
   if (entries.length === 0) throw new Error('Nothing was selected to meld.');
 
   const wasFirstMeld = !team.hasMelded;
+  const canastasBefore = canastaRanks(team);
   const selected = entries.reduce((n, g) => n + g.ids.length, 0);
   // Going out is melding the whole hand, or melding all but the one card you
   // then discard. Both count as "as you go out" for black threes.
@@ -472,6 +490,7 @@ function doMeld(next, player, team, move) {
       type: 'meld', laid, opened: wasFirstMeld,
       cards: built.reduce((n, g) => n + g.cards.length, 0),
       ranks: built.map((g) => g.to ?? meldRank(g.cards) ?? 'B3'),
+      made: canastasSince(team, canastasBefore),
     },
   });
 
@@ -499,6 +518,7 @@ function doDiscard(next, player, team, move) {
 
   takeFromHand(player.hand, [move.card]);
   next.discard.push(card);
+  next.lastDiscarder = next.turn;
   if (isWild(card)) next.frozen = true;
   next.log.push({
     turn: next.turn,
@@ -589,10 +609,6 @@ export function scoreTeam(state, team, { wentOut, concealed, caught = false }) {
 function endHand(next, outPlayerId) {
   next.handOver = true;
   next.outPlayer = outPlayerId;
-  next.log.push({
-    turn: outPlayerId,
-    move: { type: 'handOver', out: outPlayerId },
-  });
 
   const outTeam = outPlayerId === null ? null : teamIndexOf(outPlayerId);
   // Concealed: the partnership had nothing down before this turn and its whole
@@ -607,6 +623,18 @@ function endHand(next, outPlayerId) {
     // everybody, since nobody got their cards down in time.
     caught: outTeam === null || team.id !== outTeam,
   }));
+
+  // Logged after the scoring, so the board can say who went out, who was
+  // caught with what, and whose canasta had to be broken to pay for it.
+  next.log.push({
+    turn: outPlayerId,
+    move: {
+      type: 'handOver',
+      out: outPlayerId,
+      broken: next.lastHandScores.map((s) => s.broken),
+      caught: next.lastHandScores.map((s) => -s.inHand),
+    },
+  });
 
   next.teams.forEach((team, i) => {
     team.score += next.lastHandScores[i].total;
