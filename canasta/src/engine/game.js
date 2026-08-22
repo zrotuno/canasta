@@ -160,9 +160,14 @@ export function canTakePile(state, playerIndex = state.turn) {
 
 // With the stock gone, a player whose side can simply lay the top card on a
 // meld it already has is obliged to take the pile rather than end the hand.
+//
+// The obligation only bites where taking is actually possible. A frozen pile
+// wants two natural cards from hand, and a player who has not got them cannot
+// be compelled to do the impossible -- which, before this was checked, left
+// them with no legal move at all and the hand stuck fast.
 export function mustTakePile(state, playerIndex = state.turn) {
   if (state.stock.length > 0) return false;
-  if (pileBlockedReason(state)) return false;
+  if (!canTakePile(state, playerIndex).ok) return false;
   const team = state.teams[teamIndexOf(playerIndex)];
   const top = topDiscard(state);
   return Boolean(team.melds[top.rank]) && canAddToMeld(team.melds[top.rank], [top]);
@@ -401,6 +406,16 @@ function doMeld(next, player, team, move) {
   team.hasMelded = true;
   if (wasFirstMeld) next.openedThisTurn = true;
   next.meldedThisTurn = true;
+
+  // A turn ends in a discard, and discarding your last card is going out. So
+  // melding down to one card without a canasta would leave no legal move at
+  // all. It is checked here, after the melds are down, because the meld being
+  // laid may itself be what completes the canasta.
+  if (player.hand.length === 1 && !hasCanasta(team)) {
+    throw new Error('That would leave you one card you could not legally discard, '
+      + 'since your side has no canasta yet and cannot go out.');
+  }
+
   next.log.push({ turn: next.turn, move: { type: 'meld', laid } });
 
   // Melding your last card goes out, provided the partnership has a canasta.

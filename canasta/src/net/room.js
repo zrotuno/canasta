@@ -41,6 +41,45 @@ export function myId() {
 
 export const SEAT_NAMES = ['North', 'East', 'South', 'West'];
 
+// Computer players get names rather than numbers, so the table reads like
+// people rather than machinery. A name is only used once at a table.
+export const COMPUTER_NAMES = ['Ruth', 'Harold', 'Peggy', 'Walter'];
+
+export const isComputer = (seat) => Boolean(seat && seat.npc);
+export const isHuman = (seat) => Boolean(seat && !seat.npc);
+
+function freeComputerName(seats) {
+  const taken = new Set(seats.filter(Boolean).map((s) => s.name));
+  return COMPUTER_NAMES.find((n) => !taken.has(n)) ?? 'The computer';
+}
+
+// Sits a computer in an empty seat.
+export async function addComputer(code, seat) {
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef(code));
+    if (!snap.exists()) throw new Error('That game code does not exist.');
+
+    const seats = [...snap.data().seats];
+    if (seats[seat]) throw new Error('Somebody is already sitting there.');
+    seats[seat] = { id: null, name: freeComputerName(seats), npc: true };
+    tx.update(roomRef(code), { seats });
+  });
+}
+
+// Hands this player's seat to the computer, keeping their name on it, so the
+// hand carries on while they fetch a drink. Their id stays put, which is what
+// lets them take it back.
+export async function handToComputer(code) {
+  const id = myId();
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef(code));
+    if (!snap.exists()) return;
+
+    const seats = snap.data().seats.map((s) => (s && s.id === id ? { ...s, npc: true } : s));
+    tx.update(roomRef(code), { seats });
+  });
+}
+
 export async function createRoom(code = newCode()) {
   await setDoc(roomRef(code), {
     seed: Math.floor(Math.random() * 2 ** 31),
@@ -77,8 +116,11 @@ export async function claimSeat(code, seat, name) {
     if (!snap.exists()) throw new Error('That game code does not exist.');
 
     const seats = [...snap.data().seats];
-    if (seats[seat] && seats[seat].id !== id) {
-      throw new Error(`${seats[seat].name} is already sitting there.`);
+    // A computer's seat is always available to a person: that is how you take
+    // your hand back, and how a latecomer joins a game already under way.
+    const sitting = seats[seat];
+    if (sitting && !sitting.npc && sitting.id !== id) {
+      throw new Error(`${sitting.name} is already sitting there.`);
     }
     for (let i = 0; i < seats.length; i++) {
       if (seats[i] && seats[i].id === id) seats[i] = null;

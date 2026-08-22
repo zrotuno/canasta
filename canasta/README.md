@@ -30,6 +30,24 @@ The one thing this design does not do is hide anything from a determined
 player: every phone can replay the log, so the cards are all there in memory.
 For a family game that is the right trade.
 
+## Computer players
+
+Any empty chair can be filled by a computer, and a player who has to step away
+can hand their seat over and take it back later. Computers are named rather
+than numbered, so the table reads like people.
+
+No phone hosts them. Every phone works out what a computer seat should do and
+races to write the move; the append transaction means one write lands and the
+rest fall away. The computers therefore keep playing even when whoever added
+them walks out of the room.
+
+The player itself is one pure function of the game state, which is what lets
+the test suite play whole hands with it. Over two hundred hands of self-play it
+makes about eleven hundred canastas, takes seventeen hundred discard piles, and
+finishes seven hands in eight by somebody going out. Whatever it picks is tried
+against the engine before it is sent: a move the engine would refuse does not
+lose a trick, it stops the game on every device at once.
+
 ## Rules as implemented
 
 Two decks plus four jokers, 108 cards. Eleven cards each.
@@ -95,6 +113,7 @@ powershell -ExecutionPolicy Bypass -File canasta\tools\make-icons.ps1
 src/engine/cards.js   card model, values, wild and three classification
 src/engine/melds.js   meld validity and canasta scoring
 src/engine/game.js    deal, turns, the discard pile, going out, scoring
+src/ai/player.js      the computer player: one pure function, no state at all
 firestore.rules       what the database will and will not allow
 src/net/room.js       the Firestore document: seats, the move log, the lobby
 src/net/replay.js     rebuilding a game from a seed and a list of moves

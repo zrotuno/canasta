@@ -116,7 +116,7 @@ test('an opening meld below the minimum is refused', () => {
 
 test('an opening meld that clears the minimum goes down', () => {
   const aces = [c(ACE, 'S'), c(ACE, 'H'), c(ACE, 'D')];
-  const s = rig((x) => { x.phase = 'play'; x.players[0].hand = [...aces, c(9, 'S')]; });
+  const s = rig((x) => { x.phase = 'play'; x.players[0].hand = [...aces, c(9, 'S'), c(10, 'H')]; });
   const after = applyMove(s, { type: 'meld', groups: [ids(...aces)] });
   eq(after.teams[0].melds[ACE].length, 3, 'three aces on the table');
   ok(after.teams[0].hasMelded, 'the partnership has opened');
@@ -126,7 +126,7 @@ test('an opening meld that clears the minimum goes down', () => {
 test('once opened, small melds are fine', () => {
   const aces = [c(ACE, 'S'), c(ACE, 'H'), c(ACE, 'D')];
   const fours = [c(4, 'S'), c(4, 'H'), c(4, 'D')];
-  let s = rig((x) => { x.phase = 'play'; x.players[0].hand = [...aces, ...fours, c(9, 'S')]; });
+  let s = rig((x) => { x.phase = 'play'; x.players[0].hand = [...aces, ...fours, c(9, 'S'), c(10, 'H')]; });
   s = applyMove(s, { type: 'meld', groups: [ids(...aces)] });
   s = applyMove(s, { type: 'meld', groups: [ids(...fours)] });
   eq(s.teams[0].melds[4].length, 3, 'fifteen points is allowed after opening');
@@ -135,7 +135,7 @@ test('once opened, small melds are fine', () => {
 test('an opening meld may be spread over several groups', () => {
   const kings = [c(13, 'S'), c(13, 'H'), c(13, 'D')];
   const queens = [c(12, 'S'), c(12, 'H'), c(12, 'D')];
-  const s = rig((x) => { x.phase = 'play'; x.players[0].hand = [...kings, ...queens, c(9, 'S')]; });
+  const s = rig((x) => { x.phase = 'play'; x.players[0].hand = [...kings, ...queens, c(9, 'S'), c(10, 'H')]; });
   const after = applyMove(s, { type: 'meld', groups: [ids(...kings), ids(...queens)] });
   eq(meldedValue(after.teams[0]), 60, 'two melds of 30 clear the 50 together');
 });
@@ -151,7 +151,7 @@ test('you cannot meld a card you do not hold', () => {
 test('a single card can extend a meld already on the table', () => {
   const aces = [c(ACE, 'S'), c(ACE, 'H'), c(ACE, 'D')];
   const spare = c(ACE, 'C');
-  let s = rig((x) => { x.phase = 'play'; x.players[0].hand = [...aces, spare, c(9, 'S')]; });
+  let s = rig((x) => { x.phase = 'play'; x.players[0].hand = [...aces, spare, c(9, 'S'), c(10, 'H')]; });
   s = applyMove(s, { type: 'meld', groups: [ids(...aces)] });
   s = applyMove(s, { type: 'meld', groups: [ids(spare)] });
   eq(s.teams[0].melds[ACE].length, 4, 'the fourth ace joined the meld');
@@ -163,7 +163,7 @@ test('a wild card can be laid onto a meld already down', () => {
     x.phase = 'play';
     x.teams[0].melds[8] = [c(8, 'S'), c(8, 'H'), c(8, 'D')];
     x.teams[0].hasMelded = true;
-    x.players[0].hand = [wild, c(9, 'S')];
+    x.players[0].hand = [wild, c(9, 'S'), c(10, 'H')];
   });
   const after = applyMove(s, { type: 'meld', groups: [{ to: 8, cards: ids(wild) }] });
   eq(after.teams[0].melds[8].length, 4, 'the joker joined the eights');

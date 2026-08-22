@@ -14,6 +14,7 @@ import { applyMove, canTakePile, pileBlockedReason, topDiscard,
          teamIndexOf, teamCanastas, meldedValue, mustTakePile } from '../engine/game.js';
 import { label, isWild, isRed, cardValue, JOKER } from '../engine/cards.js';
 import { rebuild, NEW_HAND } from '../net/replay.js';
+import { chooseSafeMove } from '../ai/player.js';
 import * as net from '../net/room.js';
 
 const SUIT = { S: '♠', H: '♥', D: '♦', C: '♣', X: '★' };
@@ -39,8 +40,13 @@ const stagedIds = () => new Set(staged.flatMap((g) => g.ids));
 const seatOf = () => (mySeat === null ? game.turn : mySeat);
 const me = () => game.players[seatOf()];
 const myTeam = () => game.teams[teamIndexOf(seatOf())];
-const myTurn = () => mySeat !== null && game.turn === mySeat && !game.handOver;
 const cardById = (id) => me().hand.find((c) => c.id === id);
+
+// A seat handed to the computer is still yours -- you keep watching your own
+// cards, and you can take it back -- but it is not yours to play.
+const iAmComputer = () => Boolean(doc && mySeat !== null && net.isComputer(doc.seats[mySeat]));
+const myTurn = () => mySeat !== null && !iAmComputer()
+  && game.turn === mySeat && !game.handOver;
 
 const rankName = (rank) => RANK_NAME[rank] ?? `${rank}s`;
 
@@ -197,7 +203,7 @@ function renderActions() {
 
   // Your partner has asked to go out and it is your call to make.
   const asked = game.permission;
-  if (asked && asked.answer === null && asked.partner === mySeat) {
+  if (asked && asked.answer === null && asked.partner === mySeat && !iAmComputer()) {
     bar.replaceChildren(
       button(`${game.players[asked.asker].name} asks to go out`, { id: 'act-none', disabled: true }),
       button('Yes, go out', { id: 'act-yes', className: 'gold' }),
@@ -298,7 +304,15 @@ function renderHint() {
   }
 }
 
+function renderSeatSwap() {
+  const btn = $('seat-swap');
+  if (mySeat === null || !doc) { btn.hidden = true; return; }
+  btn.hidden = false;
+  btn.textContent = iAmComputer() ? 'Take my hand back' : 'Let the computer play';
+}
+
 function render() {
+  renderSeatSwap();
   renderScoreboard();
   renderMelds();
   renderCentre();
@@ -318,30 +332,104 @@ function show(screen) {
 
 const savedName = () => localStorage.getItem('canasta.name') ?? '';
 
-function seatButton(i) {
+function seatLabel(seat, mine) {
+  if (!seat) return 'Empty · sit here';
+  if (net.isComputer(seat)) return `${seat.name} · computer`;
+  return seat.name + (mine ? ' — you' : '');
+}
+
+// An occupied seat is one button. An empty one is that button plus the offer
+// of a computer, so filling the table never waits on a fourth person.
+function seatCell(i) {
   const seat = doc.seats[i];
-  const mine = Boolean(seat) && seat.id === net.myId();
+  const mine = net.isHuman(seat) && seat.id === net.myId();
+
+  const cell = document.createElement('div');
+  cell.className = 'seat-cell';
+
   const el = document.createElement('button');
   el.className = 'seat';
   if (seat) el.classList.add('taken');
   if (mine) el.classList.add('mine');
-  el.disabled = Boolean(seat) && !mine;
+  if (net.isComputer(seat)) el.classList.add('robot');
+  // A computer's chair is always free for a person to take.
+  el.disabled = net.isHuman(seat) && !mine;
   el.dataset.seat = i;
   el.innerHTML = `<span class="where">${net.SEAT_NAMES[i]}</span>`
-    + `<span class="who">${seat ? seat.name + (mine ? ' — you' : '') : 'Empty · sit here'}</span>`;
-  return el;
+    + `<span class="who">${seatLabel(seat, mine)}</span>`;
+  cell.append(el);
+
+  if (!seat) {
+    const add = document.createElement('button');
+    add.className = 'add-npc';
+    add.dataset.npc = i;
+    add.textContent = '+ let a computer play here';
+    cell.append(add);
+  }
+  return cell;
 }
 
 function renderLobby() {
   $('lobby-code').textContent = code;
-  $('seats-0').replaceChildren(seatButton(0), seatButton(2));
-  $('seats-1').replaceChildren(seatButton(1), seatButton(3));
+  $('seats-0').replaceChildren(seatCell(0), seatCell(2));
+  $('seats-1').replaceChildren(seatCell(1), seatCell(3));
 
   const filled = doc.seats.filter(Boolean).length;
   const deal = $('deal');
   deal.disabled = filled < 4;
-  deal.textContent = filled < 4 ? `Waiting for four players — ${filled} of 4` : 'Deal the first hand';
+  deal.textContent = filled < 4 ? `Four seats to fill — ${filled} taken` : 'Deal the first hand';
   show('lobby');
+}
+
+// ------------------------------------------------- the computer players
+//
+// Nobody hosts them. Every phone works out what a computer seat should do and
+// races to write it, and the append transaction means exactly one of those
+// writes lands while the others fall away. So the computers keep playing even
+// if whoever added them puts their phone in a pocket and leaves the room.
+
+const THINKING_MS = 900;
+let thinking = null;
+
+const seatIsComputer = (i) => Boolean(doc && net.isComputer(doc.seats[i]));
+
+function computerToPlay() {
+  if (!game || game.handOver || game.gameOver || !doc || !doc.started) return null;
+  const asked = game.permission;
+  if (asked && asked.answer === null && seatIsComputer(asked.partner)) return asked.partner;
+  return seatIsComputer(game.turn) ? game.turn : null;
+}
+
+// A pause long enough to read as thought, plus a place in the queue so four
+// phones do not all lunge at the same move.
+//
+// The pause belongs at the start of a turn, not before every move in it. A
+// person thinks about what to draw, then melds and discards in one motion, and
+// pausing three times over made the computers feel like they were buffering.
+function politeDelay() {
+  const humans = doc.seats.map((s, i) => (net.isHuman(s) ? i : -1)).filter((i) => i >= 0);
+  const place = humans.indexOf(mySeat);
+  const queue = (place < 0 ? humans.length : place) * 300;
+  const startingTurn = game.phase === 'draw';
+  return (startingTurn ? THINKING_MS : 250) + queue;
+}
+
+function driveComputers() {
+  clearTimeout(thinking);
+  const seat = computerToPlay();
+  if (seat === null) return;
+  thinking = setTimeout(() => playComputer(seat), politeDelay());
+}
+
+async function playComputer(seat) {
+  if (sending || computerToPlay() !== seat) return;
+  const move = chooseSafeMove(game, seat);
+  if (!move) return;
+  try {
+    await net.sendMove(code, { ...move, by: seat }, doc.moves.length);
+  } catch {
+    // Another phone got there first. That is the design, not a failure.
+  }
 }
 
 function scoreRows(table, scores) {
@@ -366,6 +454,7 @@ function scoreRows(table, scores) {
 // game from it and put the right screen up. This is the only place `game` is
 // ever assigned, which is what keeps four phones telling the same story.
 function onRoom(latest) {
+  clearTimeout(thinking);
   doc = latest;
   const seat = latest.seats.findIndex((s) => s && s.id === net.myId());
   mySeat = seat < 0 ? null : seat;
@@ -395,6 +484,7 @@ function onRoom(latest) {
 
   show('board');
   render();
+  driveComputers();
 }
 
 // ---------------------------------------------------------------- actions
@@ -550,6 +640,17 @@ async function onJoin() {
 }
 
 async function onSeatClick(event) {
+  const add = event.target.closest('[data-npc]');
+  if (add) {
+    try {
+      await net.addComputer(code, Number(add.dataset.npc));
+      $('lobby-error').textContent = '';
+    } catch (err) {
+      fail('lobby-error', err.message);
+    }
+    return;
+  }
+
   const node = event.target.closest('[data-seat]');
   if (!node) return;
   const seat = Number(node.dataset.seat);
@@ -558,6 +659,19 @@ async function onSeatClick(event) {
     $('lobby-error').textContent = '';
   } catch (err) {
     fail('lobby-error', err.message);
+  }
+}
+
+// Handing your hand to the computer, and taking it back again.
+async function onSeatSwap() {
+  if (mySeat === null) return;
+  try {
+    if (iAmComputer()) await net.claimSeat(code, mySeat, savedName() || net.SEAT_NAMES[mySeat]);
+    else await net.handToComputer(code);
+  } catch (err) {
+    message = err.message;
+    isError = true;
+    render();
   }
 }
 
@@ -572,6 +686,7 @@ export function boot() {
   $('next-hand').addEventListener('click', () => send({ type: NEW_HAND }));
   $('new-game').addEventListener('click', () =>
     net.restart(code).catch((err) => fail('lobby-error', err.message)));
+  $('seat-swap').addEventListener('click', onSeatSwap);
   $('board').addEventListener('click', onBoardClick);
   $('actions').addEventListener('click', onAction);
 

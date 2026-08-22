@@ -187,3 +187,24 @@ test('only the partner who was asked may answer', () => {
   const proper = applyMove(asked, { type: 'answerPartner', yes: true, by: 2 });
   eq(proper.permission.answer, 'yes');
 });
+
+// Found by four computers playing a hundred hands: a frozen pile, the stock
+// gone, and the top card matching a meld the player's own side had down. The
+// pile was compulsory and simultaneously impossible to take, which left the
+// player no legal move whatsoever.
+test('a frozen pile you cannot take is not compulsory, however well it fits', () => {
+  const s = createGame({ seed: 21 });
+  s.stock = [];
+  s.frozen = true;
+  const top = c(9, 'D');
+  s.discard = [c(4, 'S'), top];
+  s.teams[0].melds = { 9: [c(9, 'S'), c(9, 'H'), c(9, 'C')] };
+  s.teams[0].hasMelded = true;
+  s.players[0].hand = [c(12, 'H'), c(9, 'S')];   // one natural nine, not two
+  s.turn = 0;
+  s.phase = 'draw';
+
+  const next = applyMove(s, { type: 'pass' });
+  ok(next.handOver, 'passing was allowed and the hand ended');
+  eq(next.outPlayer, null);
+});
