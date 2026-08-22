@@ -1,5 +1,4 @@
-| Going out | Needs two canastas, not one |
-| Game to | 5000 points |# Canasta — Fifty Years
+# Canasta — Fifty Years
 
 Four-player partnership Canasta, themed for a golden wedding anniversary. A web
 app: one link that plays in any browser and installs to the home screen on
@@ -61,6 +60,7 @@ Two decks plus four jokers, 108 cards. Eleven cards each.
 | Red threes | 100 each, 800 for all four; banked and replaced the moment they are drawn |
 | Black threes | Meldable only as you go out, and never with a wild |
 | Drawing | Two cards from the stock each turn, one discarded: a hand grows by a card a turn |
+| Going out | Needs two canastas, not one |
 | Game to | 5000 points |
 
 **Opening meld.** A partnership's first meld must reach a minimum that climbs
