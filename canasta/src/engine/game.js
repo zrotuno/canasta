@@ -499,35 +499,29 @@ function canastaToBreak(bonuses, debt) {
 
 // What a side caught with cards in hand actually pays.
 //
-// Not a subtraction at the foot of the column: the debt eats the cards on the
-// table first, then whole canasta bonuses one at a time -- a canasta broken to
-// cover ninety points loses all five hundred of itself -- and then red threes.
-// Anything still owed after that is forgiven, there being nothing left to take.
-function settleDebt(team, owed, { melded, bonuses, reds }) {
-  let debt = owed;
-  let paid = 0;
-
-  const fromCards = Math.min(debt, Math.max(melded, 0));
-  paid += fromCards;
-  debt -= fromCards;
-
+// The debt eats the cards on the table first, then whole canasta bonuses one
+// at a time, then red threes, and whatever is still owed after all that comes
+// off the score and takes it negative. Nothing is ever forgiven.
+//
+// Which means the whole cost is the cards in hand plus one thing: a canasta
+// broken to cover five points forfeits all five hundred of itself, and the
+// four hundred and ninety-five nobody needed is the overshoot. Paying out of
+// the table and then going negative is otherwise just subtraction.
+function settleDebt(team, owed, { melded }) {
+  let debt = owed - Math.min(owed, Math.max(melded, 0));
   const purses = teamCanastas(team).map(canastaBonus);
   const broken = [];
+  let overshoot = 0;
+
   while (debt > 0 && purses.length) {
     const bonus = canastaToBreak(purses, debt);
     purses.splice(purses.indexOf(bonus), 1);
     broken.push(bonus);
-    paid += bonus;
+    overshoot += Math.max(0, bonus - debt);
     debt = Math.max(0, debt - bonus);
   }
 
-  if (debt > 0 && reds > 0) {
-    const fromReds = Math.min(debt, reds);
-    paid += fromReds;
-    debt -= fromReds;
-  }
-
-  return { paid, broken: broken.length };
+  return { paid: owed + overshoot, broken: broken.length };
 }
 
 export function scoreTeam(state, team, { wentOut, concealed, caught = false }) {
@@ -542,7 +536,7 @@ export function scoreTeam(state, team, { wentOut, concealed, caught = false }) {
   // The side that got caught pays out of what is on the table. Everybody else
   // simply has their leftovers deducted.
   const { paid, broken } = caught
-    ? settleDebt(team, inHand, { melded, bonuses, reds })
+    ? settleDebt(team, inHand, { melded })
     : { paid: inHand, broken: 0 };
 
   return {

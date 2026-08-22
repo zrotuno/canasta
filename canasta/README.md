@@ -154,19 +154,23 @@ on the table, in this order:
 3. red threes
 
 A canasta broken to cover ninety points forfeits all five hundred of itself:
-that is what breaking one means. Anything still owed when there is nothing left
-to take is forgiven, and a partnership that never melded keeps its red threes
-against it as usual.
+that is what breaking one means. Nothing is ever forgiven. A side that cannot
+pay for its hand out of everything it owns eats the difference and goes
+negative, which drops its opening minimum to fifteen for the next hand.
 
 The side that went out is spared it: their partner's leftovers are deducted the
-ordinary way. Everybody else pays, and when the stock dies with nobody out that
-means both sides, since neither of them got their cards down in time.
+ordinary way, and no canasta of theirs is ever broken. Everybody else pays, and
+when the stock dies with nobody out that means both sides, since neither of
+them got their cards down in time.
 
-One consequence worth knowing before it surprises somebody at the table. A side
-with nothing on the table has nothing to pay with, so its debt is forgiven
-whole: a partnership that never opened and is caught holding two hundred points
-loses none of it. That follows from paying out of the table rather than off the
-foot of the column, and it is the rule as the house plays it.
+Worth seeing plainly, because it is the whole of the rule: since the debt is
+always paid in full, paying out of the table and then going under is *exactly*
+ordinary subtraction, save for one thing. A canasta broken to cover five points
+loses the other four hundred and ninety-five as well. That overshoot is the
+entire difference between this and a normal Canasta score sheet, and it is
+worth avoiding at some cost.
 
-In two hundred self-played hands a canasta was broken five times, which is the
-sort of thing that will happen once at the party and be remembered for years.
+Across two hundred self-played hands the computers broke five canastas and
+wasted 1080 points doing it, and never once went negative -- they always have
+too much on the table. Human players, who hoard, will see both.
+

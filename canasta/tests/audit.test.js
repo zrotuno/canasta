@@ -392,9 +392,29 @@ test('on a dead deck each side pays for its own hand out of its own table', () =
   eq(melders.cost, -10, 'the king came off their table');
   eq(melders.total, 5, '15 on the table less the 10 in hand');
 
-  // A side with nothing on the table has nothing to pay with, so the debt is
-  // forgiven -- which is what "and only then stops" means in practice.
+  // A side with nothing on the table pays anyway, and goes under.
   eq(-holders.inHand, 100, 'four aces and two eights');
-  eq(holders.cost, -0, 'nothing on the table, so nothing was paid');
-  eq(holders.total, 0, 'they simply score nothing');
+  eq(holders.cost, -100, 'the whole hundred is charged');
+  eq(holders.total, -100, 'and takes them negative');
+});
+
+test('a debt bigger than everything on the table takes the score under', () => {
+  // Fifteen on the table, no canasta to break, and caught holding a hundred.
+  const out = caughtWith({ holding: [c(1, 'S'), c(1, 'H'), c(1, 'D'), c(1, 'C'), c(8, 'S'), c(8, 'H')] });
+  const losers = out.lastHandScores[1];
+  eq(losers.melded, 15);
+  eq(losers.broken, 0, 'there was no canasta to break');
+  eq(losers.cost, -100, 'the whole hand is charged, not just what the table could bear');
+  eq(losers.total, -85, '15 on the table less 100 in hand');
+});
+
+test('breaking a canasta costs the whole bonus, and only the overshoot is extra', () => {
+  // 85 of table points and a natural canasta, caught holding 90. The table
+  // pays 85, the canasta is broken for the last 5, and 495 of it is wasted.
+  const out = caughtWith({ holding: [c(1, 'S'), c(1, 'H'), c(1, 'D'), c(1, 'C'), c(13, 'S')], canastas: [9] });
+  const losers = out.lastHandScores[1];
+  eq(-losers.inHand, 90);
+  eq(losers.broken, 1);
+  eq(losers.cost, -585, '90 owed plus the 495 of the canasta nobody needed');
+  eq(losers.total, 0, '85 + 500 - 585');
 });
