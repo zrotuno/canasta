@@ -33,8 +33,12 @@ two canastas to go out, and a caught side pays out of its table. Check
 
 ## Traps
 
-- **`perl -0pi -e "..."` in bash eats `$(`, `${` and backticks.** Use the Edit
-  tool for anything containing a template literal.
+- **The shell eats `${...}`, `$(...)` and backticks**, in `perl -0pi -e "..."`
+  and in `sed` alike. It corrupts files silently. **Use the Edit tool for
+  anything containing a template literal, a `$(`, or a backtick.**
+- **Rig test hands above the opening minimum.** Three low cards is 15 against a
+  50-point minimum, which has produced a false failure four times now. Set
+  `hasMelded = true` when the case is not about opening.
 - **The service worker is deliberately off on localhost.** It once served an
   hour-old engine. If an edit seems not to apply, check
   `navigator.serviceWorker.controller` first.
