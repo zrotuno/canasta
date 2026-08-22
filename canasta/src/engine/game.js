@@ -103,6 +103,15 @@ export function createGame({
     else break;
   }
 
+  state.log.push({
+    turn: null,
+    move: {
+      type: 'deal',
+      top: label(state.discard[state.discard.length - 1]),
+      frozen: state.frozen,
+    },
+  });
+
   return state;
 }
 
@@ -298,12 +307,23 @@ function doDraw(next, player) {
   // come. Running dry partway is not the end of anything: the player keeps
   // what they got and plays on, and the hand ends on the next turn that
   // cannot draw at all.
+  const redsBefore = next.teams[player.team].redThrees.length;
   let drawn = 0;
   while (drawn < next.config.drawCount && drawInto(next, player)) drawn += 1;
   if (drawn === 0) return endHand(next, null);
 
   next.phase = 'play';
-  next.log.push({ turn: next.turn, move: { type: 'draw', cards: drawn } });
+  // The log is read by every player, so it says how many cards were drawn and
+  // never which. Red threes are the exception: they go face up on the table as
+  // they are drawn, so naming them gives nothing away.
+  next.log.push({
+    turn: next.turn,
+    move: {
+      type: 'draw',
+      cards: drawn,
+      reds: next.teams[player.team].redThrees.length - redsBefore,
+    },
+  });
   return next;
 }
 
@@ -401,7 +421,15 @@ function doTakePile(next, player, team, move) {
   next.phase = 'play';
   next.tookPileThisTurn = true;
   next.meldedThisTurn = true;
-  next.log.push({ turn: next.turn, move: { type: 'takePile', count: pile.length } });
+  // How the pile was won matters to everyone watching, and settles the
+  // argument about whether a frozen pile should have gone at all.
+  next.log.push({
+    turn: next.turn,
+    move: {
+      type: 'takePile', count: pile.length, mode: check.mode,
+      top: label(top), reds: buriedReds.length,
+    },
+  });
   return next;
 }
 
@@ -438,7 +466,14 @@ function doMeld(next, player, team, move) {
       + goingOutNeeds(next).toLowerCase());
   }
 
-  next.log.push({ turn: next.turn, move: { type: 'meld', laid } });
+  next.log.push({
+    turn: next.turn,
+    move: {
+      type: 'meld', laid, opened: wasFirstMeld,
+      cards: built.reduce((n, g) => n + g.cards.length, 0),
+      ranks: built.map((g) => g.to ?? meldRank(g.cards) ?? 'B3'),
+    },
+  });
 
   // Melding your last card goes out, provided the partnership has its canastas.
   if (player.hand.length === 0) {
@@ -465,7 +500,10 @@ function doDiscard(next, player, team, move) {
   takeFromHand(player.hand, [move.card]);
   next.discard.push(card);
   if (isWild(card)) next.frozen = true;
-  next.log.push({ turn: next.turn, move: { type: 'discard', card: label(card) } });
+  next.log.push({
+    turn: next.turn,
+    move: { type: 'discard', card: label(card), froze: isWild(card) },
+  });
 
   if (goingOut) return endHand(next, player.id);
 
@@ -551,6 +589,10 @@ export function scoreTeam(state, team, { wentOut, concealed, caught = false }) {
 function endHand(next, outPlayerId) {
   next.handOver = true;
   next.outPlayer = outPlayerId;
+  next.log.push({
+    turn: outPlayerId,
+    move: { type: 'handOver', out: outPlayerId },
+  });
 
   const outTeam = outPlayerId === null ? null : teamIndexOf(outPlayerId);
   // Concealed: the partnership had nothing down before this turn and its whole

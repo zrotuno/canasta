@@ -158,6 +158,126 @@ function renderHand() {
     cardEl(c, { selectable: true, isSelected: selected.has(c.id) })));
 }
 
+// ------------------------------------------------------- what happened
+
+// '7H' as the engine writes it, '7♥' as a person reads it.
+function prettyCard(text) {
+  if (!text) return '';
+  if (text === 'JKR') return 'Joker';
+  const suit = SUIT[text.slice(-1)];
+  return suit ? text.slice(0, -1) + suit : text;
+}
+
+const listRanks = (ranks) => ranks.map(rankName).join(' and ');
+
+// How the pile was won, in the words a player would use. This is the line the
+// action box exists for: a frozen pile going to somebody is exactly the thing
+// that starts an argument across the table.
+function pileStory(move) {
+  const card = prettyCard(move.top);
+  switch (move.mode) {
+    case 'frozen-pair': return `took the frozen pile (${move.count}) with two natural ${card}s`;
+    case 'pair': return `took the pile (${move.count}) with a pair of ${card}s`;
+    case 'natural-plus-wild': return `took the pile (${move.count}) with a ${card} and a wild`;
+    case 'add-to-meld': return `took the pile (${move.count}) onto their ${card}s`;
+    default: return `took the pile (${move.count})`;
+  }
+}
+
+// Returns the actor, the sentence, and whether it deserves the eye.
+function describe(entry) {
+  const who = entry.turn === null || !game.players[entry.turn] ? '' : game.players[entry.turn].name;
+  const m = entry.move;
+
+  switch (m.type) {
+    case 'deal':
+      return { who: '', what: `Dealt — ${prettyCard(m.top)} turned up`
+        + (m.frozen ? ', and the pile starts frozen' : ''), notable: m.frozen, quiet: !m.frozen };
+
+    case 'draw': {
+      const reds = m.reds
+        ? `, turning ${m.reds === 1 ? 'a red three' : `${m.reds} red threes`}`
+        : '';
+      return { who, what: `drew ${m.cards}${reds}`, notable: Boolean(m.reds), quiet: !m.reds };
+    }
+
+    case 'takePile': {
+      const reds = m.reds ? `, and ${m.reds === 1 ? 'a red three' : `${m.reds} red threes`} with it` : '';
+      return { who, what: pileStory(m) + reds, notable: true };
+    }
+
+    case 'meld':
+      return {
+        who,
+        what: m.opened
+          ? `opened with ${listRanks(m.ranks)} — ${m.laid}`
+          : `melded ${listRanks(m.ranks)} — ${m.laid}`,
+        notable: m.opened,
+      };
+
+    case 'discard':
+      return {
+        who,
+        what: `discarded ${prettyCard(m.card)}${m.froze ? ' — the pile is frozen' : ''}`,
+        notable: m.froze,
+      };
+
+    case 'pass':
+      return { who, what: 'let the pile go, and the hand with it', notable: true };
+
+    case 'askPartner':
+      return { who, what: 'asked their partner to go out', notable: true };
+
+    case 'answerPartner':
+      return { who: '', what: m.yes ? 'Partner said yes' : 'Partner said no', notable: true };
+
+    case 'handOver':
+      return m.out === null
+        ? { who: '', what: 'The stock ran out. Nobody went out.', notable: true }
+        : { who, what: 'went out', notable: true };
+
+    default:
+      return { who, what: m.type, quiet: true };
+  }
+}
+
+function renderLog() {
+  const list = $('log');
+  const count = $('log-count');
+  const entries = game.log ?? [];
+
+  count.textContent = entries.length ? `${entries.length} this hand` : '';
+
+  if (entries.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'quiet';
+    empty.textContent = 'Nothing yet.';
+    list.replaceChildren(empty);
+    return;
+  }
+
+  // Newest first, so what you just missed is at the top and needs no scrolling.
+  list.replaceChildren(...[...entries].reverse().map((entry) => {
+    const { who, what, notable, quiet } = describe(entry);
+    const li = document.createElement('li');
+    if (notable) li.classList.add('notable');
+    if (quiet) li.classList.add('quiet');
+
+    if (who) {
+      const name = document.createElement('span');
+      name.className = 'who';
+      // textContent, not innerHTML: these names were typed by players.
+      name.textContent = who;
+      li.append(name);
+    }
+    const said = document.createElement('span');
+    said.className = 'what';
+    said.textContent = what;
+    li.append(said);
+    return li;
+  }));
+}
+
 function renderTray() {
   const tray = $('tray');
   if (staged.length === 0) {
@@ -317,6 +437,7 @@ function render() {
   renderScoreboard();
   renderMelds();
   renderCentre();
+  renderLog();
   renderHand();
   renderTray();
   renderActions();

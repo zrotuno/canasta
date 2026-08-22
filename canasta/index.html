@@ -112,6 +112,26 @@
     color: var(--muted); background: transparent; border-style: dashed;
   }
 
+  /* ------------------------------------------------- what happened */
+  .log {
+    list-style: none; margin: 8px 0 0; padding: 0 2px 0 0;
+    max-height: 112px; overflow-y: auto; overscroll-behavior: contain;
+    font-size: 13px; line-height: 1.4;
+  }
+  .log li {
+    display: flex; gap: 7px; align-items: baseline;
+    padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  .log li:last-child { border-bottom: none; }
+  /* Newest at the top, so the thing you just missed needs no scrolling. */
+  .log li:first-child { color: var(--text); }
+  .log li { color: #c9d9d1; }
+  .log .who { color: var(--gold); font-weight: 600; flex: none; }
+  .log .what { min-width: 0; }
+  .log li.notable .what { color: var(--gold); }
+  .log li.quiet { color: var(--muted); }
+  .log .none { color: var(--muted); font-size: 13px; }
+
   /* --------------------------------------------- handing a seat over */
   .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
   button.ghost {
@@ -208,6 +228,15 @@
   }
   .chip button { min-height: 0; padding: 0 4px; border: 0; background: none; color: var(--gold); font-size: 15px; }
 
+  /* The buttons stay on screen however long the board gets. Hands grow by a
+     card a turn under these rules, and the action log added a panel of its
+     own, so the controls had drifted below the fold on a phone. */
+  .controls {
+    position: sticky; bottom: 0; z-index: 5;
+    margin-top: 10px;
+    padding-bottom: max(4px, env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, transparent, var(--felt-dark) 22%);
+  }
   .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
   .actions button { flex: 1 1 auto; }
 
@@ -307,6 +336,14 @@
 
     <div class="panel">
       <div class="panel-head">
+        <h2>What happened</h2>
+        <span class="caption" id="log-count"></span>
+      </div>
+      <ol class="log" id="log"></ol>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
         <h2 id="hand-title">Your hand</h2>
         <button id="seat-swap" class="ghost" hidden></button>
       </div>
@@ -318,8 +355,10 @@
       <div class="tray" id="tray"></div>
     </div>
 
-    <div class="actions" id="actions"></div>
-    <p class="hint" id="hint"></p>
+    <div class="controls">
+      <div class="actions" id="actions"></div>
+      <p class="hint" id="hint"></p>
+    </div>
   </section>
 
   <!-- ---------------------------------------------------------- hand over -->

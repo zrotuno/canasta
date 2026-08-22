@@ -4,8 +4,8 @@
 // wrong. They are kept as regression cover.
 
 import { test, eq, ok, no, section } from './harness.js';
-import { THREE } from '../src/engine/cards.js';
-import { createGame, applyMove } from '../src/engine/game.js';
+import { THREE, DEUCE, JOKER } from '../src/engine/cards.js';
+import { createGame, applyMove, canTakePile } from '../src/engine/game.js';
 
 section('Rules audit');
 
@@ -417,4 +417,133 @@ test('breaking a canasta costs the whole bonus, and only the overshoot is extra'
   eq(losers.broken, 1);
   eq(losers.cost, -585, '90 owed plus the 495 of the canasta nobody needed');
   eq(losers.total, 0, '85 + 500 - 585');
+});
+
+// ------------------------------------------------ freezing, reported from play
+
+// Rigs the exact sequence described: a wild is discarded to freeze the pile,
+// the next player throws an ordinary card onto it, and the player after that
+// tries to take it.
+function frozenThenDiscarded({ freezeWith, thenDiscard, holding }) {
+  const s = createGame({ seed: 51 });
+  s.discard = [c(6, 'C'), c(10, 'D')];      // a couple of cards already down
+  s.frozen = false;
+  s.turn = 0;
+  s.phase = 'play';
+  s.players[0].hand = [freezeWith, c(8, 'S'), c(9, 'S')];
+
+  // Seat 0 freezes it.
+  let next = applyMove(s, { type: 'discard', card: freezeWith.id, by: 0 });
+
+  // Seat 1 draws and throws the next card on top.
+  next.players[1].hand = [thenDiscard, c(12, 'S'), c(11, 'S')];
+  next.phase = 'play';
+  next = applyMove(next, { type: 'discard', card: thenDiscard.id, by: 1 });
+
+  // Seat 2 comes to it holding whatever we were given.
+  next.players[2].hand = holding;
+  return next;
+}
+
+test('a wild card discarded freezes the pile and blocks it outright', () => {
+  const after = frozenThenDiscarded({
+    freezeWith: c(DEUCE, 'H'), thenDiscard: c(7, 'S'), holding: [],
+  });
+  ok(after.frozen, 'the pile is frozen');
+});
+
+test('a frozen pile will not go to one natural card and a wild', () => {
+  const after = frozenThenDiscarded({
+    freezeWith: c(DEUCE, 'H'),
+    thenDiscard: c(7, 'S'),
+    holding: [c(7, 'H'), c(JOKER, 'X'), c(12, 'D')],   // one seven and a joker
+  });
+  const check = canTakePile(after, 2);
+  no(check.ok, `expected a refusal, got: ${JSON.stringify(check)}`);
+  ok(check.reason.includes('frozen'), check.reason);
+});
+
+test('a frozen pile goes only to two natural cards of the rank', () => {
+  const after = frozenThenDiscarded({
+    freezeWith: c(DEUCE, 'H'),
+    thenDiscard: c(7, 'S'),
+    holding: [c(7, 'H'), c(7, 'D'), c(12, 'D')],
+  });
+  const check = canTakePile(after, 2);
+  ok(check.ok, `two natural sevens should take it: ${JSON.stringify(check)}`);
+  eq(check.mode, 'frozen-pair');
+});
+
+test('a frozen pile is not opened by a meld your side already has', () => {
+  // Unfrozen, a matching meld on the table takes the pile with nothing in hand.
+  // Frozen, it must not.
+  const after = frozenThenDiscarded({
+    freezeWith: c(DEUCE, 'H'),
+    thenDiscard: c(7, 'S'),
+    holding: [c(12, 'D')],
+  });
+  after.teams[0].melds = { 7: [c(7, 'S'), c(7, 'H'), c(7, 'C')] };
+  after.teams[0].hasMelded = true;
+
+  const check = canTakePile(after, 2);   // seat 2 is on team 0
+  no(check.ok, `a frozen pile must stay shut: ${JSON.stringify(check)}`);
+});
+
+test('two deuces in hand do not take a deuce off the top of the pile', () => {
+  const after = frozenThenDiscarded({
+    freezeWith: c(9, 'C'),                 // freeze is irrelevant here
+    thenDiscard: c(DEUCE, 'S'),            // a wild sits on top
+    holding: [c(DEUCE, 'H'), c(DEUCE, 'D'), c(12, 'D')],
+  });
+  const check = canTakePile(after, 2);
+  no(check.ok, `a wild on top blocks the pile: ${JSON.stringify(check)}`);
+  ok(check.reason.includes('wild'), check.reason);
+});
+
+// -------------------------------------------------------- the action log
+
+test('the log says how the pile was won, and never what was drawn', () => {
+  const s = createGame({ seed: 61 });
+  s.discard = [c(6, 'C'), c(7, 'D')];
+  s.frozen = true;
+  s.teams[0].hasMelded = true;   // past the opening minimum; not what this tests
+  s.players[0].hand = [c(7, 'H'), c(7, 'S'), c(12, 'D'), c(11, 'S')];
+  s.turn = 0;
+  s.phase = 'draw';
+
+  const after = applyMove(s, {
+    type: 'takePile', by: 0,
+    groups: [[s.players[0].hand[0].id, s.players[0].hand[1].id, s.discard[1].id]],
+  });
+
+  const entry = after.log[after.log.length - 1].move;
+  eq(entry.type, 'takePile');
+  eq(entry.mode, 'frozen-pair', 'it records that a frozen pile was taken with two naturals');
+  eq(entry.count, 2, 'and how many cards came across');
+  eq(entry.top, '7D', 'and which card was on top');
+});
+
+test('the log marks the discard that freezes the pile', () => {
+  const s = createGame({ seed: 62 });
+  const wild = c(DEUCE, 'H');
+  s.players[0].hand = [wild, c(9, 'S'), c(10, 'S')];
+  s.turn = 0;
+  s.phase = 'play';
+
+  const after = applyMove(s, { type: 'discard', card: wild.id, by: 0 });
+  const entry = after.log[after.log.length - 1].move;
+  eq(entry.type, 'discard');
+  eq(entry.card, '2H');
+  eq(entry.froze, true, 'the freeze is recorded so the board can say so');
+});
+
+test('a draw reports its count and its red threes, never its cards', () => {
+  const s = createGame({ seed: 63 });
+  const after = applyMove(s, { type: 'draw', by: 0 });
+  const entry = after.log[after.log.length - 1].move;
+  eq(entry.type, 'draw');
+  eq(entry.cards, 2, 'two drawn');
+  ok('reds' in entry, 'red threes are counted');
+  // The whole point: nothing in here identifies a card that went into a hand.
+  no(JSON.stringify(entry).includes('id'), 'no card identity leaks into the log');
 });

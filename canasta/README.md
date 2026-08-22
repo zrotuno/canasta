@@ -130,7 +130,7 @@ src/ai/player.js      the computer player: one pure function, no state at all
 firestore.rules       what the database will and will not allow
 src/net/room.js       the Firestore document: seats, the move log, the lobby
 src/net/replay.js     rebuilding a game from a seed and a list of moves
-src/ui/board.js       the board, the lobby and everything you tap
+src/ui/board.js       the board, the lobby, the action log, everything you tap
 tools/bot.js          a crude auto-player, for driving whole hands in testing
 tests/                browser-run suites
 ```
