@@ -1,4 +1,5 @@
-# Canasta — Fifty Years
+| Going out | Needs two canastas, not one |
+| Game to | 5000 points |# Canasta — Fifty Years
 
 Four-player partnership Canasta, themed for a golden wedding anniversary. A web
 app: one link that plays in any browser and installs to the home screen on
@@ -94,7 +95,7 @@ already has makes the pile compulsory: you may not decline it.
 **Asking to go out.** You may ask your partner once per turn, after drawing.
 The answer binds you.
 
-**Going out.** Your partnership needs at least one canasta. Going out pays 100,
+**Going out.** Your partnership needs two canastas. Going out pays 100,
 or 200 if you laid your whole hand down in a single turn having melded nothing
 before. Cards left in hand are deducted.
 
@@ -138,3 +139,25 @@ the yes and the board says so plainly, but it will not refuse your discard:
 a player who asks, is told yes, and then finds they cannot actually go out
 would otherwise be stuck with no legal move at all. A refusal, which is the
 half that comes up in real play, is enforced strictly.
+
+## Being caught with cards
+
+The side that gets caught when somebody goes out does not simply have its
+leftovers deducted at the foot of the column. It pays for them out of what is
+on the table, in this order:
+
+1. the card points of its melds
+2. whole canasta bonuses, one at a time, until the debt is covered
+3. red threes
+
+A canasta broken to cover ninety points forfeits all five hundred of itself:
+that is what breaking one means. Anything still owed when there is nothing left
+to take is forgiven, and a partnership that never melded keeps its red threes
+against it as usual.
+
+None of this applies to the side that went out -- their partner's leftovers are
+deducted the ordinary way -- and none of it applies to a hand that merely ran
+out of stock, where nobody was caught by anybody.
+
+In two hundred self-played hands a canasta was broken three times, which is the
+sort of thing that will happen once at the party and be remembered for years.

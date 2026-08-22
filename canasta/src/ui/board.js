@@ -434,10 +434,17 @@ async function playComputer(seat) {
 }
 
 function scoreRows(table, scores) {
+  // `cost` rather than `inHand`: a side caught by somebody going out pays for
+  // its leftovers out of the table, and a canasta broken to cover ninety
+  // points costs all five hundred of itself. What it cost is the honest
+  // number, and the row says how much was in the hand that cost it.
+  const held = scores.map((s) => -s.inHand);
   const rows = [
     ['Cards melded', 'melded'], ['Canasta bonuses', 'bonuses'],
-    ['Red threes', 'redThrees'], ['Going out', 'goOut'], ['Left in hand', 'inHand'],
+    ['Red threes', 'redThrees'], ['Going out', 'goOut'],
+    [`Left in hand (${held[0]} · ${held[1]})`, 'cost'],
   ];
+  if (scores.some((s) => s.broken)) rows.push(['Canastas broken', 'broken']);
   const names = game.teams.map((t) =>
     game.players.filter((p) => p.team === t.id).map((p) => p.name).join(' & '));
 

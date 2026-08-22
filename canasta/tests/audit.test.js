@@ -38,7 +38,7 @@ test('a red three buried in the discard pile is banked, not taken into hand', ()
 // Going out with a final discard is still going out, so black threes may go
 // down on that turn even though one card stays in hand for the discard.
 test('black threes can be melded when going out with a final discard', () => {
-  const s = createGame({ seed: 2 });
+  const s = createGame({ seed: 2, config: { canastasToGoOut: 1 } });
   const blacks = [c(THREE, 'S'), c(THREE, 'C'), c(THREE, 'S')];
   const last = c(9, 'H');
 
@@ -114,7 +114,8 @@ test('while the stock holds cards, passing is not a legal move', () => {
 
 // A player one card from out, whose side already has a canasta.
 function readyToGoOut() {
-  const s = createGame({ seed: 5 });
+  // About asking a partner, not about the house minimum, so one canasta.
+  const s = createGame({ seed: 5, config: { canastasToGoOut: 1 } });
   const last = c(9, 'H');
   s.teams[0].melds = { 5: [c(5, 'S'), c(5, 'H'), c(5, 'D'), c(5, 'C'), c(5, 'S'), c(5, 'H'), c(5, 'D')] };
   s.teams[0].hasMelded = true;
@@ -251,4 +252,116 @@ test('the classic single draw is still there for the asking', () => {
   const s = createGame({ seed: 34, config: { drawCount: 1 } });
   const before = s.players[0].hand.length;
   eq(applyMove(s, { type: 'draw' }).players[0].hand.length, before + 1);
+});
+
+// ------------------------------------- going out, and what it costs the others
+
+// Seven of a rank is a canasta. Natural unless a wild is asked for.
+const canasta = (rank, { wild = false } = {}) => {
+  const cards = [];
+  for (let i = 0; i < (wild ? 6 : 7); i++) cards.push(c(rank, i % 2 ? 'H' : 'S'));
+  if (wild) cards.push(c(DEUCE, 'D'));
+  return cards;
+};
+
+test('one canasta is no longer enough to go out', () => {
+  const s = createGame({ seed: 41 });
+  const last = c(9, 'H');
+  s.teams[0].melds = { 5: canasta(5) };
+  s.teams[0].hasMelded = true;
+  s.players[0].hand = [last];
+  s.turn = 0;
+  s.phase = 'play';
+
+  let message = '';
+  try { applyMove(s, { type: 'discard', card: last.id }); } catch (e) { message = e.message; }
+  ok(message.includes('2 canastas'), `expected the two-canasta rule, got: ${message}`);
+});
+
+test('two canastas and you are away', () => {
+  const s = createGame({ seed: 42 });
+  const last = c(9, 'H');
+  s.teams[0].melds = { 5: canasta(5), 8: canasta(8) };
+  s.teams[0].hasMelded = true;
+  s.players[0].hand = [last];
+  s.turn = 0;
+  s.phase = 'play';
+
+  const out = applyMove(s, { type: 'discard', card: last.id });
+  ok(out.handOver, 'the hand ended');
+  eq(out.outPlayer, 0);
+});
+
+// Builds a finished hand: seat 0 goes out, and the other side is caught with
+// `holding` worth of cards over `melded` on the table plus whatever canastas.
+function caughtWith({ holding, tableRank = 4, canastas = [] }) {
+  const s = createGame({ seed: 43 });
+  s.teams[0].melds = { 5: canasta(5), 8: canasta(8) };
+  s.teams[0].hasMelded = true;
+
+  const melds = {};
+  for (const rank of canastas) melds[rank] = canasta(rank);
+  melds[tableRank] = [c(tableRank, 'S'), c(tableRank, 'H'), c(tableRank, 'D')];
+  s.teams[1].melds = melds;
+  s.teams[1].hasMelded = true;
+
+  s.teams[0].redThrees = [];
+  s.teams[1].redThrees = [];
+  s.players[1].hand = holding;
+  s.players[3].hand = [];
+  s.players[2].hand = [];
+  s.players[0].hand = [c(9, 'H')];
+  s.turn = 0;
+  s.phase = 'play';
+  return applyMove(s, { type: 'discard', card: s.players[0].hand[0].id });
+}
+
+test('leftover cards come off the table, not off the bottom of the column', () => {
+  // Three fours on the table is 15. Caught holding a king, worth 10.
+  const out = caughtWith({ holding: [c(13, 'S')] });
+  const losers = out.lastHandScores[1];
+  eq(losers.melded, 15, 'the table is still reported in full');
+  eq(losers.cost, -10, 'and the ten it cost is shown against it');
+  eq(losers.broken, 0, 'no canasta needed breaking');
+  eq(losers.total, 5, '15 on the table less the 10 in hand');
+});
+
+test('a canasta is broken to cover what the table cannot, and its whole bonus goes', () => {
+  // 15 on the table plus a natural canasta of nines, and caught holding 100.
+  const out = caughtWith({ holding: [c(1, 'S'), c(1, 'H'), c(1, 'D'), c(1, 'C'), c(13, 'S')], canastas: [9] });
+  const losers = out.lastHandScores[1];
+
+  eq(-losers.inHand, 90, 'four aces and a king');
+  eq(losers.broken, 1, 'the canasta was broken');
+  // 15 of table points, then the canasta's whole 500 for the remaining 75.
+  // 15 in fours plus the canasta's own seventy in nines is 85 of table points,
+  // then the canasta's whole 500 to cover the last five.
+  eq(losers.melded, 85, 'the fours and the nines');
+  eq(losers.cost, -585, 'the table paid 85 and the canasta paid all 500 of itself');
+  // Reported table and bonus stay whole; the cost carries the damage.
+  eq(losers.total, losers.melded + losers.bonuses + losers.redThrees + losers.cost);
+  eq(losers.total, 0, '85 + 500 - 585');
+});
+
+test('the side that went out is not punished this way', () => {
+  const out = caughtWith({ holding: [c(13, 'S')] });
+  const winners = out.lastHandScores[0];
+  eq(winners.caught, false);
+  eq(winners.cost, -0, 'their own hands were empty');
+  ok(winners.total > 1000, `two canastas and the going-out bonus: ${winners.total}`);
+});
+
+test('a hand that merely runs out of stock punishes nobody that way', () => {
+  const s = createGame({ seed: 44 });
+  s.stock = [];
+  s.discard = [c(9, 'D')];
+  s.frozen = true;
+  s.players[0].hand = [c(13, 'S'), c(12, 'H')];
+  s.turn = 0;
+  s.phase = 'draw';
+
+  const out = applyMove(s, { type: 'draw' });
+  ok(out.handOver, 'the hand ended with nobody out');
+  eq(out.outPlayer, null);
+  for (const side of out.lastHandScores) eq(side.caught, false, 'neither side was caught');
 });

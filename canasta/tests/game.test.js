@@ -14,6 +14,12 @@ const ids = (...cards) => cards.map((x) => x.id);
 
 const game = (opts = {}) => createGame({ seed: 1, ...opts });
 
+// The house rule wants two canastas before a side may go out. These cases were
+// written about the mechanics of going out rather than about that minimum, so
+// they ask for the classic single canasta and leave the house rule to the
+// audit suite, which covers it directly.
+const classicOut = { config: { canastasToGoOut: 1 } };
+
 // Total cards visible anywhere in the state.
 const census = (s) =>
   s.players.reduce((n, p) => n + p.hand.length, 0) +
@@ -359,7 +365,7 @@ test('a canasta lets you go out and ends the hand', () => {
     x.teams[0].melds[8] = Array.from({ length: 7 }, () => c(8, 'S'));
     x.players[0].hand = [last];
     x.players.forEach((p, i) => { if (i > 0) p.hand = []; });
-  });
+  }, classicOut);
   eq(teamCanastas(s.teams[0]).length, 1);
   const after = applyMove(s, { type: 'discard', card: last.id });
   ok(after.handOver, 'the hand is over');
@@ -375,7 +381,7 @@ test('melding your last card goes out too', () => {
     x.teams[0].melds[8] = Array.from({ length: 7 }, () => c(8, 'S'));
     x.players[0].hand = [...aces];
     x.players.forEach((p, i) => { if (i > 0) p.hand = []; });
-  });
+  }, classicOut);
   const after = applyMove(s, { type: 'meld', groups: [ids(...aces)] });
   ok(after.handOver, 'the hand ended on the meld');
 });
@@ -395,7 +401,7 @@ test('black threes go down only as you go out', () => {
     x.teams[0].melds[8] = Array.from({ length: 7 }, () => c(8, 'S'));
     x.players[0].hand = [...threes];
     x.players.forEach((p, i) => { if (i > 0) p.hand = []; });
-  });
+  }, classicOut);
   ok(applyMove(going, { type: 'meld', groups: [ids(...threes)] }).handOver, 'allowed on the way out');
 });
 
@@ -456,7 +462,7 @@ test('going out having melded nothing before pays the concealed bonus', () => {
     x.phase = 'play';
     x.players[0].hand = [...aces];
     x.players.forEach((p, i) => { if (i > 0) p.hand = []; });
-  });
+  }, classicOut);
   const after = applyMove(s, { type: 'meld', groups: [ids(...aces)] });
   ok(after.handOver, 'the hand ended');
   eq(after.lastHandScores[0].goOut, 200, 'concealed pays double');
@@ -471,7 +477,7 @@ test('going out after melding on an earlier turn pays the plain bonus', () => {
     x.teams[0].melds[ACE] = Array.from({ length: 7 }, () => c(ACE, 'S'));
     x.players[0].hand = [last];
     x.players.forEach((p, i) => { if (i > 0) p.hand = []; });
-  });
+  }, classicOut);
   const after = applyMove(s, { type: 'discard', card: last.id });
   eq(after.lastHandScores[0].goOut, 100, 'not concealed');
 });
@@ -484,7 +490,7 @@ test('an opponent melding does not affect the concealed bonus', () => {
     x.teams[1].melds[9] = [c(9, 'S'), c(9, 'H'), c(9, 'D')];
     x.players[0].hand = [...aces];
     x.players.forEach((p, i) => { if (i > 0) p.hand = []; });
-  });
+  }, classicOut);
   const after = applyMove(s, { type: 'meld', groups: [ids(...aces)] });
   eq(after.lastHandScores[0].goOut, 200, 'still concealed');
 });
@@ -497,7 +503,7 @@ test('hand scores are banked and the minimum is recalculated', () => {
     x.teams[0].melds[ACE] = Array.from({ length: 7 }, () => c(ACE, 'S'));  // 140 + 500
     x.players[0].hand = [last];
     x.players.forEach((p, i) => { if (i > 0) p.hand = []; });
-  });
+  }, classicOut);
   const after = applyMove(s, { type: 'discard', card: last.id });
   ok(after.teams[0].score >= 740, `banked ${after.teams[0].score}`);
   eq(after.teams[0].minimum, 50, 'still under 1500');

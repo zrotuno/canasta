@@ -14,7 +14,7 @@ import {
 } from '../engine/cards.js';
 import { CANASTA_SIZE, meldError } from '../engine/melds.js';
 import {
-  canTakePile, mustTakePile, topDiscard, teamIndexOf, hasCanasta, applyMove,
+  canTakePile, mustTakePile, topDiscard, teamIndexOf, canGoOut, applyMove,
 } from '../engine/game.js';
 
 // How big a pile has to be before it is worth taking on size alone.
@@ -160,7 +160,7 @@ function trimToLegal(state, seat, groups) {
   const laying = groups.reduce((n, g) => n + g.cards.length, 0);
   const left = hand.length - laying;
 
-  if (left === 0 && hasCanasta(team)) return groups;      // going out, and allowed to
+  if (left === 0 && canGoOut(state, team)) return groups;   // going out, and allowed to
 
   // Two cards is the legal floor. A player who melds down to it every turn can
   // never take the discard pile again -- that wants two matching cards in hand
@@ -169,7 +169,7 @@ function trimToLegal(state, seat, groups) {
   // The reserve is dropped once the stock is nearly gone: cards held at the
   // end of a hand are deducted rather than banked, and there is no longer time
   // to make anything of them.
-  const legalFloor = hasCanasta(team) ? 1 : 2;
+  const legalFloor = canGoOut(state, team) ? 1 : 2;
   const hoard = team.hasMelded && state.stock.length > ENDGAME;
   const keep = hoard ? Math.max(legalFloor, RESERVE) : legalFloor;
   if (left >= keep) return groups;

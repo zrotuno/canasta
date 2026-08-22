@@ -19,6 +19,8 @@ export const DEFAULT_CONFIG = {
   handSize: 11,
   // Decks in the pack, two jokers apiece. Two decks is the classic 108 cards.
   deckCount: 2,
+  // Canastas a partnership needs before it may go out.
+  canastasToGoOut: 2,
   // Cards taken from the stock on a turn. Two, against the one of the classic
   // game: the hand grows by a card a turn and the stock empties twice as fast,
   // which makes for shorter hands and much fuller ones.
@@ -124,6 +126,14 @@ function drawInto(state, seat) {
 export const teamMelds = (team) => Object.values(team.melds);
 export const teamCanastas = (team) => teamMelds(team).filter(isCanasta);
 export const hasCanasta = (team) => teamCanastas(team).length > 0;
+
+// Going out takes more than one canasta in this house: the number lives in the
+// config so the classic single-canasta game is still a setting away.
+export const canGoOut = (state, team) =>
+  teamCanastas(team).length >= state.config.canastasToGoOut;
+
+const goingOutNeeds = (state) =>
+  `Your side needs ${state.config.canastasToGoOut} canastas before going out.`;
 
 // Card values on the table, before any bonus.
 export const meldedValue = (team) => teamMelds(team).reduce((n, m) => n + meldPoints(m), 0);
@@ -406,7 +416,7 @@ function doMeld(next, player, team, move) {
   // Going out is melding the whole hand, or melding all but the one card you
   // then discard. Both count as "as you go out" for black threes.
   const remaining = player.hand.length - selected;
-  const goingOut = remaining === 0 || (remaining === 1 && hasCanasta(team));
+  const goingOut = remaining === 0 || (remaining === 1 && canGoOut(next, team));
 
   const built = entries.map((g) => ({ to: g.to, cards: takeFromHand(player.hand, g.ids) }));
   const laid = layGroups(team, built, { goingOut });
@@ -423,17 +433,17 @@ function doMeld(next, player, team, move) {
   // melding down to one card without a canasta would leave no legal move at
   // all. It is checked here, after the melds are down, because the meld being
   // laid may itself be what completes the canasta.
-  if (player.hand.length === 1 && !hasCanasta(team)) {
-    throw new Error('That would leave you one card you could not legally discard, '
-      + 'since your side has no canasta yet and cannot go out.');
+  if (player.hand.length === 1 && !canGoOut(next, team)) {
+    throw new Error('That would leave you one card you could not legally discard: '
+      + goingOutNeeds(next).toLowerCase());
   }
 
   next.log.push({ turn: next.turn, move: { type: 'meld', laid } });
 
-  // Melding your last card goes out, provided the partnership has a canasta.
+  // Melding your last card goes out, provided the partnership has its canastas.
   if (player.hand.length === 0) {
     refuseIfDenied(next, player);
-    if (!hasCanasta(team)) throw new Error('You need a canasta before going out.');
+    if (!canGoOut(next, team)) throw new Error(goingOutNeeds(next));
     return endHand(next, player.id);
   }
   return next;
@@ -445,11 +455,11 @@ function doDiscard(next, player, team, move) {
   const card = byId(player.hand, move.card);
   if (!card) throw new Error('You do not hold that card.');
 
-  // Going out on the discard needs a canasta, same as melding out.
+  // Going out on the discard needs the canastas, same as melding out.
   const goingOut = player.hand.length === 1;
   if (goingOut) {
     refuseIfDenied(next, player);
-    if (!hasCanasta(team)) throw new Error('You need a canasta before going out.');
+    if (!canGoOut(next, team)) throw new Error(goingOutNeeds(next));
   }
 
   takeFromHand(player.hand, [move.card]);
@@ -479,7 +489,48 @@ export function redThreeScore(state, team) {
   return team.hasMelded ? value : -value;
 }
 
-export function scoreTeam(state, team, { wentOut, concealed }) {
+// Which canasta to break to settle a debt. The one a player would reach for:
+// the cheapest that covers what is owed, and failing that the dearest, since
+// breaking a canasta forfeits its whole bonus however little of it was needed.
+function canastaToBreak(bonuses, debt) {
+  const covering = bonuses.filter((b) => b >= debt);
+  return covering.length ? Math.min(...covering) : Math.max(...bonuses);
+}
+
+// What a side caught with cards in hand actually pays.
+//
+// Not a subtraction at the foot of the column: the debt eats the cards on the
+// table first, then whole canasta bonuses one at a time -- a canasta broken to
+// cover ninety points loses all five hundred of itself -- and then red threes.
+// Anything still owed after that is forgiven, there being nothing left to take.
+function settleDebt(team, owed, { melded, bonuses, reds }) {
+  let debt = owed;
+  let paid = 0;
+
+  const fromCards = Math.min(debt, Math.max(melded, 0));
+  paid += fromCards;
+  debt -= fromCards;
+
+  const purses = teamCanastas(team).map(canastaBonus);
+  const broken = [];
+  while (debt > 0 && purses.length) {
+    const bonus = canastaToBreak(purses, debt);
+    purses.splice(purses.indexOf(bonus), 1);
+    broken.push(bonus);
+    paid += bonus;
+    debt = Math.max(0, debt - bonus);
+  }
+
+  if (debt > 0 && reds > 0) {
+    const fromReds = Math.min(debt, reds);
+    paid += fromReds;
+    debt -= fromReds;
+  }
+
+  return { paid, broken: broken.length };
+}
+
+export function scoreTeam(state, team, { wentOut, concealed, caught = false }) {
   const melded = meldedValue(team);
   const bonuses = teamMelds(team).reduce((n, m) => n + canastaBonus(m), 0);
   const reds = redThreeScore(state, team);
@@ -488,9 +539,18 @@ export function scoreTeam(state, team, { wentOut, concealed }) {
     .reduce((n, p) => n + p.hand.reduce((s, c) => s + cardValue(c), 0), 0);
   const out = wentOut ? (concealed ? state.config.concealedBonus : state.config.goOutBonus) : 0;
 
+  // The side that got caught pays out of what is on the table. Everybody else
+  // simply has their leftovers deducted.
+  const { paid, broken } = caught
+    ? settleDebt(team, inHand, { melded, bonuses, reds })
+    : { paid: inHand, broken: 0 };
+
   return {
-    melded, bonuses, redThrees: reds, goOut: out, inHand: -inHand,
-    total: melded + bonuses + reds + out - inHand,
+    melded, bonuses, redThrees: reds, goOut: out,
+    inHand: -inHand,      // what they were holding
+    cost: -paid,          // what holding it actually cost them
+    broken, caught,
+    total: melded + bonuses + reds + out - paid,
   };
 }
 
@@ -504,8 +564,13 @@ function endHand(next, outPlayerId) {
   // the opponents' melds too.
   const concealed = outPlayerId !== null && next.openedThisTurn;
 
-  next.lastHandScores = next.teams.map((team) =>
-    scoreTeam(next, team, { wentOut: team.id === outTeam, concealed: concealed && team.id === outTeam }));
+  next.lastHandScores = next.teams.map((team) => scoreTeam(next, team, {
+    wentOut: team.id === outTeam,
+    concealed: concealed && team.id === outTeam,
+    // Only a side caught by somebody going out pays out of the table. A hand
+    // that simply ran out of stock is deducted the ordinary way on both sides.
+    caught: outTeam !== null && team.id !== outTeam,
+  }));
 
   next.teams.forEach((team, i) => {
     team.score += next.lastHandScores[i].total;
