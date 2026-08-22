@@ -208,3 +208,47 @@ test('a frozen pile you cannot take is not compulsory, however well it fits', ()
   ok(next.handOver, 'passing was allowed and the hand ended');
   eq(next.outPlayer, null);
 });
+
+// ------------------------------------------------ drawing two from the stock
+
+test('a turn draws two cards from the stock', () => {
+  const s = createGame({ seed: 31 });
+  const before = s.players[0].hand.length;
+  const next = applyMove(s, { type: 'draw' });
+  eq(next.players[0].hand.length, before + 2, 'two cards came across');
+  eq(next.phase, 'play');
+});
+
+test('a red three among the two is banked and replaced, so two still arrive', () => {
+  const s = createGame({ seed: 32 });
+  const before = s.players[0].hand.length;
+  const banked = s.teams[0].redThrees.length;
+  // The stock is drawn from the end, so this deals 8S, then a red three, then 9C.
+  s.stock = [c(9, 'C'), c(THREE, 'H'), c(8, 'S')];
+  s.turn = 0;
+  s.phase = 'draw';
+
+  const next = applyMove(s, { type: 'draw' });
+  eq(next.players[0].hand.length, before + 2, 'still two cards in hand');
+  eq(next.teams[0].redThrees.length, banked + 1, 'and the three went to the bank');
+  eq(next.stock.length, 0, 'which took the last of the stock');
+});
+
+test('a stock with one card left gives up that card and play carries on', () => {
+  const s = createGame({ seed: 33 });
+  const before = s.players[0].hand.length;
+  s.stock = [c(8, 'S')];
+  s.turn = 0;
+  s.phase = 'draw';
+
+  const next = applyMove(s, { type: 'draw' });
+  no(next.handOver, 'one card short is not the end of the hand');
+  eq(next.players[0].hand.length, before + 1, 'the player took what there was');
+  eq(next.phase, 'play');
+});
+
+test('the classic single draw is still there for the asking', () => {
+  const s = createGame({ seed: 34, config: { drawCount: 1 } });
+  const before = s.players[0].hand.length;
+  eq(applyMove(s, { type: 'draw' }).players[0].hand.length, before + 1);
+});

@@ -17,6 +17,12 @@ import {
 
 export const DEFAULT_CONFIG = {
   handSize: 11,
+  // Decks in the pack, two jokers apiece. Two decks is the classic 108 cards.
+  deckCount: 2,
+  // Cards taken from the stock on a turn. Two, against the one of the classic
+  // game: the hand grows by a card a turn and the stock empties twice as fast,
+  // which makes for shorter hands and much fuller ones.
+  drawCount: 2,
   targetScore: 5000,
   goOutBonus: 100,
   concealedBonus: 200,
@@ -51,7 +57,7 @@ export function createGame({
   if (players.length !== 4) throw new Error('Canasta seats exactly four players.');
 
   const rng = makeRng(seed);
-  const stock = shuffle(buildDeck(), rng);
+  const stock = shuffle(buildDeck({ deckCount: cfg.deckCount }), rng);
 
   const teams = [0, 1].map((id) => ({
     id,
@@ -278,10 +284,16 @@ function doDraw(next, player) {
     return endHand(next, null);
   }
 
-  // False here means the stock ran dry banking red threes, last card included.
-  if (!drawInto(next, player)) return endHand(next, null);
+  // A turn draws `drawCount` cards, red threes banked and replaced as they
+  // come. Running dry partway is not the end of anything: the player keeps
+  // what they got and plays on, and the hand ends on the next turn that
+  // cannot draw at all.
+  let drawn = 0;
+  while (drawn < next.config.drawCount && drawInto(next, player)) drawn += 1;
+  if (drawn === 0) return endHand(next, null);
+
   next.phase = 'play';
-  next.log.push({ turn: next.turn, move: { type: 'draw' } });
+  next.log.push({ turn: next.turn, move: { type: 'draw', cards: drawn } });
   return next;
 }
 

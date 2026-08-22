@@ -82,11 +82,12 @@ test('you cannot draw twice in a turn', () => {
 
 test('drawing then discarding passes the turn on', () => {
   let s = applyMove(game(), { type: 'draw' });
-  eq(s.players[0].hand.length, 12, 'drew one');
+  eq(s.players[0].hand.length, 13, 'drew two');
   s = applyMove(s, { type: 'discard', card: s.players[0].hand[0].id });
   eq(s.turn, 1, 'next player');
   eq(s.phase, 'draw');
-  eq(s.players[0].hand.length, 11, 'back to eleven');
+  // Two in and one out, so a hand grows by a card every turn.
+  eq(s.players[0].hand.length, 12, 'up one on where it started');
 });
 
 test('the deck is conserved across a full turn', () => {

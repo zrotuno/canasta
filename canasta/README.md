@@ -59,6 +59,7 @@ Two decks plus four jokers, 108 cards. Eleven cards each.
 | Canasta | Seven cards — 500 natural, 300 with a wild in it |
 | Red threes | 100 each, 800 for all four; banked and replaced the moment they are drawn |
 | Black threes | Meldable only as you go out, and never with a wild |
+| Drawing | Two cards from the stock each turn, one discarded: a hand grows by a card a turn |
 | Game to | 5000 points |
 
 **Opening meld.** A partnership's first meld must reach a minimum that climbs
@@ -76,6 +77,14 @@ them before committing.
 A pile freezes when a wild card is discarded onto it, or when a wild or red
 three is buried in it at the start of the hand. Taking the pile clears the
 freeze.
+
+**Drawing two.** A turn takes two cards from the stock rather than the classic
+one, and still ends in a single discard, so hands swell as the deal goes on and
+the stock empties twice as fast. Over a hundred and fifty self-played hands
+that leaves only about a third of them ending with somebody going out, against
+seven in eight when drawing one; three decks rather than two would put it back
+to roughly three quarters. Both numbers live in `DEFAULT_CONFIG`, as
+`drawCount` and `deckCount`.
 
 **Running out of stock.** When the stock is gone the hand carries on across
 the discard pile alone. The player to move must take it, and the hand ends the

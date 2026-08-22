@@ -238,7 +238,8 @@ function renderActions() {
     const needsSelection = check.mode !== 'add-to-meld';
     const short = needsSelection && selected.size === 0;
     bar.replaceChildren(
-      button('Draw a card', { id: 'act-draw', className: 'primary', disabled: staged.length > 0 }),
+      button(game.config.drawCount === 1 ? 'Draw a card' : `Draw ${game.config.drawCount} cards`,
+        { id: 'act-draw', className: 'primary', disabled: staged.length > 0 }),
       // Opening on the pile often needs a second meld alongside it to reach
       // the minimum, so groups can be stacked up before taking.
       button('Group selected', { id: 'act-group', disabled: selected.size === 0 }),
@@ -295,8 +296,8 @@ function renderHint() {
     hint.textContent = 'The stock is gone. Take the pile if you can use the top card, '
       + 'otherwise the hand ends here.';
   } else if (game.phase === 'draw') {
-    hint.textContent = 'Draw from the stock, or take the whole discard pile if you can '
-      + 'use the top card straight away.';
+    hint.textContent = `Take ${game.config.drawCount} from the stock, or take the whole `
+      + 'discard pile if you can use the top card straight away.';
   } else if (staged.length) {
     hint.textContent = 'Tap one of your melds to add the selected cards to it, or lay down what you have.';
   } else {
