@@ -43,8 +43,10 @@ them walks out of the room.
 
 The player itself is one pure function of the game state, which is what lets
 the test suite play whole hands with it. Over two hundred hands of self-play it
-makes about eleven hundred canastas, takes seventeen hundred discard piles, and
-finishes seven hands in eight by somebody going out. Whatever it picks is tried
+makes about eleven hundred canastas and takes seventeen hundred discard piles.
+Roughly a third of those hands end with somebody going out and the rest on a
+dead deck, which is the house rules rather than the player: drawing two from
+two decks, and two canastas needed before anyone may go out. Whatever it picks is tried
 against the engine before it is sent: a move the engine would refuse does not
 lose a trick, it stops the game on every device at once.
 
@@ -97,7 +99,8 @@ The answer binds you.
 
 **Going out.** Your partnership needs two canastas. Going out pays 100,
 or 200 if you laid your whole hand down in a single turn having melded nothing
-before. Cards left in hand are deducted.
+before. What everybody else's leftover cards cost them is its own section,
+below: they come off the table rather than off the foot of the column.
 
 ## Running it
 
