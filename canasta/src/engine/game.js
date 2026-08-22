@@ -567,9 +567,9 @@ function endHand(next, outPlayerId) {
   next.lastHandScores = next.teams.map((team) => scoreTeam(next, team, {
     wentOut: team.id === outTeam,
     concealed: concealed && team.id === outTeam,
-    // Only a side caught by somebody going out pays out of the table. A hand
-    // that simply ran out of stock is deducted the ordinary way on both sides.
-    caught: outTeam !== null && team.id !== outTeam,
+    // Somebody going out catches the other side. The stock running dry catches
+    // everybody, since nobody got their cards down in time.
+    caught: outTeam === null || team.id !== outTeam,
   }));
 
   next.teams.forEach((team, i) => {

@@ -155,9 +155,15 @@ that is what breaking one means. Anything still owed when there is nothing left
 to take is forgiven, and a partnership that never melded keeps its red threes
 against it as usual.
 
-None of this applies to the side that went out -- their partner's leftovers are
-deducted the ordinary way -- and none of it applies to a hand that merely ran
-out of stock, where nobody was caught by anybody.
+The side that went out is spared it: their partner's leftovers are deducted the
+ordinary way. Everybody else pays, and when the stock dies with nobody out that
+means both sides, since neither of them got their cards down in time.
 
-In two hundred self-played hands a canasta was broken three times, which is the
+One consequence worth knowing before it surprises somebody at the table. A side
+with nothing on the table has nothing to pay with, so its debt is forgiven
+whole: a partnership that never opened and is caught holding two hundred points
+loses none of it. That follows from paying out of the table rather than off the
+foot of the column, and it is the rule as the house plays it.
+
+In two hundred self-played hands a canasta was broken five times, which is the
 sort of thing that will happen once at the party and be remembered for years.

@@ -351,7 +351,7 @@ test('the side that went out is not punished this way', () => {
   ok(winners.total > 1000, `two canastas and the going-out bonus: ${winners.total}`);
 });
 
-test('a hand that merely runs out of stock punishes nobody that way', () => {
+test('a dead deck catches both sides, not neither', () => {
   const s = createGame({ seed: 44 });
   s.stock = [];
   s.discard = [c(9, 'D')];
@@ -363,5 +363,38 @@ test('a hand that merely runs out of stock punishes nobody that way', () => {
   const out = applyMove(s, { type: 'draw' });
   ok(out.handOver, 'the hand ended with nobody out');
   eq(out.outPlayer, null);
-  for (const side of out.lastHandScores) eq(side.caught, false, 'neither side was caught');
+  for (const side of out.lastHandScores) eq(side.caught, true, 'both sides pay out of the table');
+});
+
+test('on a dead deck each side pays for its own hand out of its own table', () => {
+  const s = createGame({ seed: 45 });
+  s.stock = [];
+  s.discard = [c(9, 'D')];
+  s.frozen = true;                       // and nobody holds two natural nines
+  s.teams[0].redThrees = [];
+  s.teams[1].redThrees = [];
+
+  // One side has fifteen on the table and is caught holding ten.
+  s.teams[0].melds = { 4: [c(4, 'S'), c(4, 'H'), c(4, 'D')] };
+  s.teams[0].hasMelded = true;
+  s.players[0].hand = [c(13, 'S')];
+  s.players[2].hand = [];
+
+  // The other never melded at all, and is caught holding a hundred.
+  s.players[1].hand = [c(1, 'S'), c(1, 'H'), c(1, 'D'), c(1, 'C'), c(8, 'S'), c(8, 'H')];
+  s.players[3].hand = [];
+
+  s.turn = 0;
+  s.phase = 'draw';
+  const out = applyMove(s, { type: 'draw' });
+
+  const [melders, holders] = out.lastHandScores;
+  eq(melders.cost, -10, 'the king came off their table');
+  eq(melders.total, 5, '15 on the table less the 10 in hand');
+
+  // A side with nothing on the table has nothing to pay with, so the debt is
+  // forgiven -- which is what "and only then stops" means in practice.
+  eq(-holders.inHand, 100, 'four aces and two eights');
+  eq(holders.cost, -0, 'nothing on the table, so nothing was paid');
+  eq(holders.total, 0, 'they simply score nothing');
 });
