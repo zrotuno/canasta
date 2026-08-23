@@ -166,6 +166,11 @@
   .log li.notable .what { color: var(--gold); }
   .log li.quiet { color: var(--muted); }
   .log .none { color: var(--muted); font-size: 13px; }
+  .panel-head .spacer { flex: 1; }
+  /* Folded away, the panel gives its height back to the board rather than
+     merely hiding its contents. */
+  #log-panel.folded .log { display: none; }
+  #log-panel.folded { padding-top: 10px; padding-bottom: 10px; }
 
   /* --------------------------------------------- handing a seat over */
   .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
@@ -370,10 +375,12 @@
       </div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="log-panel">
       <div class="panel-head">
         <h2>What happened</h2>
+        <span class="spacer"></span>
         <span class="caption" id="log-count"></span>
+        <button class="ghost" id="log-toggle" aria-expanded="true" aria-controls="log">Hide</button>
       </div>
       <ol class="log" id="log"></ol>
     </div>

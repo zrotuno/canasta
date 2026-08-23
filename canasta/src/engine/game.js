@@ -12,7 +12,8 @@ import {
   buildDeck, makeRng, shuffle, cardValue, isWild, isRedThree, isBlackThree, isNatural, label,
 } from './cards.js';
 import {
-  meldError, meldPoints, meldRank, canastaBonus, isCanasta, isBlackThreeMeld, canAddToMeld, MAX_WILDS,
+  meldError, addToMeldError, meldPoints, meldRank, canastaBonus, isCanasta,
+  isBlackThreeMeld, canAddToMeld, MAX_WILDS,
 } from './melds.js';
 
 export const DEFAULT_CONFIG = {
@@ -188,7 +189,14 @@ export function canTakePile(state, playerIndex = state.turn) {
       ? { ok: true, mode: 'frozen-pair' }
       : { ok: false, reason: 'The pile is frozen: you need two natural cards matching the top card.' };
   }
-  if (team.melds[top.rank]) return { ok: true, mode: 'add-to-meld' };
+  // A meld of that rank takes the pile for you. A closed canasta of that rank
+  // does the opposite: melds are one to a rank, so with the canasta shut there
+  // is nowhere for the card to go and the pile is not yours by any route.
+  const ours = team.melds[top.rank];
+  if (ours && isCanasta(ours)) {
+    return { ok: false, reason: 'Your canasta of that rank is closed, so the top card has nowhere to go.' };
+  }
+  if (ours) return { ok: true, mode: 'add-to-meld' };
   if (naturals.length >= 2) return { ok: true, mode: 'pair' };
   if (naturals.length >= 1 && wilds.length >= 1) return { ok: true, mode: 'natural-plus-wild' };
 
@@ -251,9 +259,12 @@ function layGroups(team, entries, { goingOut }) {
     const existing = team.melds[rank];
     if (to !== null && !existing) throw new Error(`Your side has no meld of that rank to add to.`);
 
-    const combined = [...(existing ?? []), ...cards];
-    const error = meldError(combined);
+    // A finished canasta is closed and takes nothing more, so adding to a meld
+    // is a different question from laying a fresh one.
+    const error = existing ? addToMeldError(existing, cards) : meldError(cards);
     if (error) throw new Error(error);
+
+    const combined = [...(existing ?? []), ...cards];
 
     team.melds[rank] = combined;
     laid += meldPoints(cards);

@@ -81,6 +81,14 @@ A pile freezes when a wild card is discarded onto it, or when a wild or red
 three is buried in it at the start of the hand. Taking the pile clears the
 freeze.
 
+**A finished canasta is closed.** Nothing more goes onto it, which the classic
+game allows. Melds are one to a rank, so a closed canasta shuts that rank for
+the partnership altogether: a seven on the pile is no use to a side whose
+sevens are already a canasta, however many sevens they hold. Across two hundred
+self-played hands this raises canastas made from 1114 to 1294 and cuts hands
+that end with somebody going out from 61 to 35, since a closed canasta can no
+longer absorb a spare card.
+
 **Drawing two.** A turn takes two cards from the stock rather than the classic
 one, and still ends in a single discard, so hands swell as the deal goes on and
 the stock empties twice as fast. Over a hundred and fifty self-played hands

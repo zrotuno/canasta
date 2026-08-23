@@ -66,7 +66,11 @@ function cardEl(card, { selectable = false, isSelected = false } = {}) {
     `<span class="rank">${card.rank === JOKER ? 'JKR' : text.replace(/[SHDCX]$/, '')}</span>` +
     `<span class="suit">${SUIT[card.suit] ?? ''}</span>`;
   el.title = text;
-  el.dataset.card = card.id;
+  // Only cards you could actually play carry the tap handle. The top of the
+  // discard pile is drawn with this same function, and while it was tagged you
+  // could select it without any sign that you had -- and then taking the pile
+  // sent that card twice and failed on the second look-up.
+  if (selectable) el.dataset.card = card.id;
   return el;
 }
 
@@ -275,12 +279,29 @@ function renderTaunt() {
   }
 }
 
+// Folded or not, remembered between sessions: somebody who does not want the
+// log should not have to close it every hand.
+let logOpen = localStorage.getItem('canasta.log') !== 'folded';
+
+function toggleLog() {
+  logOpen = !logOpen;
+  localStorage.setItem('canasta.log', logOpen ? 'open' : 'folded');
+  render();
+}
+
 function renderLog() {
   const list = $('log');
   const count = $('log-count');
   const entries = game.log ?? [];
 
+  $('log-panel').classList.toggle('folded', !logOpen);
+  const toggle = $('log-toggle');
+  toggle.textContent = logOpen ? 'Hide' : 'Show';
+  toggle.setAttribute('aria-expanded', String(logOpen));
+
   count.textContent = entries.length ? `${entries.length} this hand` : '';
+  // Nothing to build while it is folded away.
+  if (!logOpen) return;
 
   if (entries.length === 0) {
     const empty = document.createElement('li');
@@ -742,9 +763,13 @@ function onAction(event) {
       // Any groups already staged go down in the same move, which is what
       // lets an opening meld reach its minimum on the way in.
       const top = topDiscard(game);
-      const topGroup = selected.size === 0
+      // Belt and braces after the above: whatever is selected, only cards
+      // genuinely in hand go into the move, and the top card goes in once.
+      const held = new Set(me().hand.map((c) => c.id));
+      const fromHand = [...selected].filter((id) => held.has(id) && id !== top.id);
+      const topGroup = fromHand.length === 0
         ? { to: top.rank, cards: [top.id] }
-        : [...selected, top.id];
+        : [...fromHand, top.id];
       const groups = [...staged.map((g) => ({ to: g.to, cards: g.ids })), topGroup];
       return send({ type: 'takePile', groups });
     }
@@ -860,6 +885,7 @@ export function boot() {
   $('new-game').addEventListener('click', () =>
     net.restart(code).catch((err) => fail('lobby-error', err.message)));
   $('seat-swap').addEventListener('click', onSeatSwap);
+  $('log-toggle').addEventListener('click', toggleLog);
   $('board').addEventListener('click', onBoardClick);
   $('actions').addEventListener('click', onAction);
 

@@ -54,10 +54,15 @@ export const isBlackThreeMeld = (cards) => cards.length > 0 && cards.every(isBla
 
 export const isValidMeld = (cards) => meldError(cards) === null;
 
-// Adding to a meld already on the table has to leave it legal too.
-export function canAddToMeld(meld, cards) {
-  return meldError([...meld, ...cards]) === null;
+// Adding to a meld already on the table has to leave it legal too -- and a
+// finished canasta takes nothing more. It is closed the moment it is complete,
+// which is a house rule: the classic game lets you keep piling cards on.
+export function addToMeldError(meld, cards) {
+  if (isCanasta(meld)) return 'That canasta is closed. Nothing more goes onto it.';
+  return meldError([...meld, ...cards]);
 }
+
+export const canAddToMeld = (meld, cards) => addToMeldError(meld, cards) === null;
 
 export const meldPoints = (cards) => cards.reduce((sum, c) => sum + cardValue(c), 0);
 

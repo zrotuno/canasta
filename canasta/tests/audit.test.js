@@ -605,3 +605,82 @@ test('a red three taken with the discard pile is banked and NOT replaced', () =>
   eq(after.players[0].hand.length, before - 2, 'nothing was drawn to replace it');
   eq(after.stock.length, s.stock.length, 'the stock was never touched');
 });
+
+// ------------------------------- taking the pile onto a meld already down
+
+// Reported from play: a side with sevens down, a seven on top of an unfrozen
+// pile, and the board refusing with "you do not hold one of those cards".
+function pileOntoMeld({ meld, hand, frozen = false }) {
+  const s = createGame({ seed: 81 });
+  const top = c(7, 'D');
+  s.discard = [c(9, 'C'), c(4, 'S'), top];
+  s.frozen = frozen;
+  s.teams[0].melds = { 7: meld };
+  s.teams[0].hasMelded = true;
+  s.players[0].hand = hand;
+  s.turn = 0;
+  s.phase = 'draw';
+  return { s, top };
+}
+
+test('a seven on the pile goes onto your own sevens, with nothing in hand', () => {
+  const { s, top } = pileOntoMeld({
+    meld: [c(7, 'S'), c(7, 'H'), c(7, 'C')],
+    hand: [c(12, 'D'), c(11, 'S'), c(8, 'H')],
+  });
+
+  const check = canTakePile(s, 0);
+  ok(check.ok, `the board offers it: ${JSON.stringify(check)}`);
+  eq(check.mode, 'add-to-meld');
+
+  const after = applyMove(s, { type: 'takePile', by: 0, groups: [{ to: 7, cards: [top.id] }] });
+  eq(after.teams[0].melds[7].length, 4, 'the seven joined the meld');
+  eq(after.discard.length, 0, 'and the pile came across');
+  eq(after.players[0].hand.length, 3 + 2, 'the other two pile cards are in hand');
+});
+
+test('a finished canasta is closed and takes nothing more', () => {
+  const canastaOfSevens = [c(7, 'S'), c(7, 'H'), c(7, 'D'), c(7, 'C'), c(7, 'S'), c(7, 'H'), c(7, 'D')];
+  const { s, top } = pileOntoMeld({
+    meld: canastaOfSevens,
+    hand: [c(12, 'D'), c(11, 'S'), c(8, 'H')],
+  });
+
+  const check = canTakePile(s, 0);
+  no(check.ok, `a closed canasta must not open the pile: ${JSON.stringify(check)}`);
+
+  let message = '';
+  try { applyMove(s, { type: 'takePile', by: 0, groups: [{ to: 7, cards: [top.id] }] }); }
+  catch (e) { message = e.message; }
+  ok(message.length > 0, 'and the move itself is refused');
+});
+
+test('a closed canasta of sevens shuts the rank, even holding two sevens', () => {
+  const canastaOfSevens = [c(7, 'S'), c(7, 'H'), c(7, 'D'), c(7, 'C'), c(7, 'S'), c(7, 'H'), c(7, 'D')];
+  const mine = [c(7, 'S'), c(7, 'C')];
+  const { s } = pileOntoMeld({
+    meld: canastaOfSevens,
+    hand: [...mine, c(12, 'D'), c(8, 'H')],
+  });
+
+  // Melds are one to a rank. With the canasta closed there is nowhere for
+  // another seven to go, however many are held, so the pile is not available.
+  const check = canTakePile(s, 0);
+  no(check.ok, `the rank is shut: ${JSON.stringify(check)}`);
+  ok(check.reason.includes('closed'), check.reason);
+});
+
+test('you cannot quietly add to a closed canasta by melding either', () => {
+  const s = createGame({ seed: 82 });
+  s.teams[0].melds = { 8: [c(8, 'S'), c(8, 'H'), c(8, 'D'), c(8, 'C'), c(8, 'S'), c(8, 'H'), c(8, 'D')] };
+  s.teams[0].hasMelded = true;
+  const spare = c(8, 'C');
+  s.players[0].hand = [spare, c(12, 'D'), c(11, 'S'), c(4, 'H')];
+  s.turn = 0;
+  s.phase = 'play';
+
+  let message = '';
+  try { applyMove(s, { type: 'meld', by: 0, groups: [{ to: 8, cards: [spare.id] }] }); }
+  catch (e) { message = e.message; }
+  ok(message.toLowerCase().includes('closed'), `expected the canasta to be closed, got: ${message}`);
+});

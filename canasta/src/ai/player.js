@@ -12,7 +12,7 @@
 import {
   isWild, isNatural, isBlackThree, cardValue,
 } from '../engine/cards.js';
-import { CANASTA_SIZE, meldError } from '../engine/melds.js';
+import { CANASTA_SIZE, meldError, isCanasta } from '../engine/melds.js';
 import {
   canTakePile, mustTakePile, topDiscard, teamIndexOf, canGoOut, applyMove,
 } from '../engine/game.js';
@@ -116,7 +116,8 @@ function extendingPlan(state, seat) {
   const used = new Set();
 
   for (const [rankKey, meld] of Object.entries(team.melds)) {
-    if (rankKey === 'B3') continue;
+    // A finished canasta is closed, so there is nothing to add to it.
+    if (rankKey === 'B3' || isCanasta(meld)) continue;
     const rank = Number(rankKey);
     const matches = hand.filter((c) => c.rank === rank && isNatural(c) && !used.has(c.id));
     if (matches.length === 0) continue;
