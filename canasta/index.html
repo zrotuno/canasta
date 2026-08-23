@@ -150,7 +150,9 @@
   /* ------------------------------------------------- what happened */
   .log {
     list-style: none; margin: 8px 0 0; padding: 0 2px 0 0;
-    max-height: 112px; overflow-y: auto; overscroll-behavior: contain;
+    /* Two lines at a time, scrollable for the rest: on a phone the board
+       matters more than the history. */
+    max-height: 58px; overflow-y: auto; overscroll-behavior: contain;
     font-size: 13px; line-height: 1.4;
   }
   .log li {
@@ -207,6 +209,16 @@
   .card.wild { outline: 2px solid var(--gold); outline-offset: -2px; }
   .card.selectable { cursor: pointer; }
   .card.selected { transform: translateY(-9px); box-shadow: 0 0 0 3px #fff, 0 7px 14px rgba(0,0,0,.5); }
+  /* A card the opposition has melded: throwing it hands them the pile with
+     nothing in their hand at all. Marked so you can see it before you do. */
+  .card { position: relative; }
+  .card.risky { box-shadow: 0 0 0 2px var(--ink), 0 2px 5px rgba(0,0,0,.35); }
+  .card .warn {
+    position: absolute; top: calc(var(--card-w)*.02); right: calc(var(--card-w)*.09);
+    font-size: calc(var(--card-w)*.40); line-height: 1; color: var(--ink);
+  }
+  .legend { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+  .legend b { color: var(--ink); font-size: 14px; }
   .card .rank { font-size: calc(var(--card-w)*.32); }
   .card .suit { font-size: calc(var(--card-w)*.34); align-self: flex-end; }
 
@@ -391,6 +403,7 @@
         <button id="seat-swap" class="ghost" hidden></button>
       </div>
       <div class="hand" id="hand"></div>
+      <p class="legend" id="legend" hidden><b>&lowast;</b> they have these down: throw one and the pile is theirs.</p>
     </div>
 
     <div class="panel" id="staging">

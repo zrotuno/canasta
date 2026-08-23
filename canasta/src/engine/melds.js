@@ -54,13 +54,10 @@ export const isBlackThreeMeld = (cards) => cards.length > 0 && cards.every(isBla
 
 export const isValidMeld = (cards) => meldError(cards) === null;
 
-// Adding to a meld already on the table has to leave it legal too -- and a
-// finished canasta takes nothing more. It is closed the moment it is complete,
-// which is a house rule: the classic game lets you keep piling cards on.
-export function addToMeldError(meld, cards) {
-  if (isCanasta(meld)) return 'That canasta is closed. Nothing more goes onto it.';
-  return meldError([...meld, ...cards]);
-}
+// Adding to a meld already on the table has to leave it legal too. A finished
+// canasta still takes cards, and they still score: what a finished canasta
+// does not do is hand you the discard pile. That rule lives in canTakePile.
+export const addToMeldError = (meld, cards) => meldError([...meld, ...cards]);
 
 export const canAddToMeld = (meld, cards) => addToMeldError(meld, cards) === null;
 

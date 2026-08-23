@@ -189,14 +189,12 @@ export function canTakePile(state, playerIndex = state.turn) {
       ? { ok: true, mode: 'frozen-pair' }
       : { ok: false, reason: 'The pile is frozen: you need two natural cards matching the top card.' };
   }
-  // A meld of that rank takes the pile for you. A closed canasta of that rank
-  // does the opposite: melds are one to a rank, so with the canasta shut there
-  // is nowhere for the card to go and the pile is not yours by any route.
+  // A meld of that rank takes the pile for you, but a finished canasta does
+  // not: a side that has already made its sevens cannot keep collecting every
+  // seven that is thrown. They need the cards in hand like anybody else, and
+  // the card can still go onto the canasta for points once the pile is theirs.
   const ours = team.melds[top.rank];
-  if (ours && isCanasta(ours)) {
-    return { ok: false, reason: 'Your canasta of that rank is closed, so the top card has nowhere to go.' };
-  }
-  if (ours) return { ok: true, mode: 'add-to-meld' };
+  if (ours && !isCanasta(ours)) return { ok: true, mode: 'add-to-meld' };
   if (naturals.length >= 2) return { ok: true, mode: 'pair' };
   if (naturals.length >= 1 && wilds.length >= 1) return { ok: true, mode: 'natural-plus-wild' };
 

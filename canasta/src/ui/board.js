@@ -13,6 +13,7 @@
 import { applyMove, canTakePile, pileBlockedReason, topDiscard,
          teamIndexOf, teamCanastas, meldedValue, mustTakePile } from '../engine/game.js';
 import { label, isWild, isRed, cardValue, JOKER } from '../engine/cards.js';
+import { isCanasta } from '../engine/melds.js';
 import { rebuild, NEW_HAND } from '../net/replay.js';
 import { chooseSafeMove } from '../ai/player.js';
 import { tauntForMove, tauntForHandEnd } from './taunts.js';
@@ -53,18 +54,20 @@ const rankName = (rank) => RANK_NAME[rank] ?? `${rank}s`;
 
 // ---------------------------------------------------------------- rendering
 
-function cardEl(card, { selectable = false, isSelected = false } = {}) {
+function cardEl(card, { selectable = false, isSelected = false, risky = false } = {}) {
   const el = document.createElement('div');
   el.className = 'card';
   if (isRed(card)) el.classList.add('red');
   if (isWild(card)) el.classList.add('wild');
   if (selectable) el.classList.add('selectable');
   if (isSelected) el.classList.add('selected');
+  if (risky) el.classList.add('risky');
 
   const text = label(card);
   el.innerHTML =
     `<span class="rank">${card.rank === JOKER ? 'JKR' : text.replace(/[SHDCX]$/, '')}</span>` +
-    `<span class="suit">${SUIT[card.suit] ?? ''}</span>`;
+    `<span class="suit">${SUIT[card.suit] ?? ''}</span>` +
+    (risky ? '<span class="warn">&lowast;</span>' : '');
   el.title = text;
   // Only cards you could actually play carry the tap handle. The top of the
   // discard pile is drawn with this same function, and while it was tagged you
@@ -152,15 +155,34 @@ function renderCentre() {
   state.innerHTML = bits.join('');
 }
 
+// Ranks the opposition could take the pile with, holding nothing at all: they
+// have that rank down and it is not yet a canasta, and the pile is not frozen.
+// Throw one of these and the pile is theirs for free, which is worth seeing
+// before you throw it rather than afterwards.
+function ranksTheyCanUse() {
+  if (game.frozen) return new Set();
+  const them = game.teams[1 - teamIndexOf(seatOf())];
+  return new Set(Object.entries(them.melds)
+    .filter(([rank, meld]) => rank !== 'B3' && !isCanasta(meld))
+    .map(([rank]) => Number(rank)));
+}
+
 function renderHand() {
   const hidden = stagedIds();
+  const risky = ranksTheyCanUse();
   const cards = [...me().hand]
     .filter((c) => !hidden.has(c.id))
     .sort((a, b) => a.rank - b.rank || a.suit.localeCompare(b.suit));
 
   $('hand-title').textContent = `${me().name} — ${me().hand.length} cards`;
   $('hand').replaceChildren(...cards.map((c) =>
-    cardEl(c, { selectable: true, isSelected: selected.has(c.id) })));
+    cardEl(c, {
+      selectable: true,
+      isSelected: selected.has(c.id),
+      risky: risky.has(c.rank),
+    })));
+
+  $('legend').hidden = !cards.some((c) => risky.has(c.rank));
 }
 
 // ------------------------------------------------------- what happened

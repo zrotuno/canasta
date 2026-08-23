@@ -5,7 +5,7 @@
 
 import { test, eq, ok, no, section } from './harness.js';
 import { THREE, DEUCE, JOKER } from '../src/engine/cards.js';
-import { createGame, applyMove, canTakePile } from '../src/engine/game.js';
+import { createGame, applyMove, canTakePile, meldedValue } from '../src/engine/game.js';
 
 section('Rules audit');
 
@@ -639,15 +639,17 @@ test('a seven on the pile goes onto your own sevens, with nothing in hand', () =
   eq(after.players[0].hand.length, 3 + 2, 'the other two pile cards are in hand');
 });
 
-test('a finished canasta is closed and takes nothing more', () => {
-  const canastaOfSevens = [c(7, 'S'), c(7, 'H'), c(7, 'D'), c(7, 'C'), c(7, 'S'), c(7, 'H'), c(7, 'D')];
+const canastaOf = (rank) =>
+  [c(rank, 'S'), c(rank, 'H'), c(rank, 'D'), c(rank, 'C'), c(rank, 'S'), c(rank, 'H'), c(rank, 'D')];
+
+test('a finished canasta does not hand you the pile', () => {
   const { s, top } = pileOntoMeld({
-    meld: canastaOfSevens,
-    hand: [c(12, 'D'), c(11, 'S'), c(8, 'H')],
+    meld: canastaOf(7),
+    hand: [c(12, 'D'), c(11, 'S'), c(8, 'H')],   // nothing useful in hand
   });
 
   const check = canTakePile(s, 0);
-  no(check.ok, `a closed canasta must not open the pile: ${JSON.stringify(check)}`);
+  no(check.ok, `a finished canasta must not open the pile: ${JSON.stringify(check)}`);
 
   let message = '';
   try { applyMove(s, { type: 'takePile', by: 0, groups: [{ to: 7, cards: [top.id] }] }); }
@@ -655,32 +657,34 @@ test('a finished canasta is closed and takes nothing more', () => {
   ok(message.length > 0, 'and the move itself is refused');
 });
 
-test('a closed canasta of sevens shuts the rank, even holding two sevens', () => {
-  const canastaOfSevens = [c(7, 'S'), c(7, 'H'), c(7, 'D'), c(7, 'C'), c(7, 'S'), c(7, 'H'), c(7, 'D')];
+test('two sevens in hand still take the pile onto a finished canasta of sevens', () => {
   const mine = [c(7, 'S'), c(7, 'C')];
-  const { s } = pileOntoMeld({
-    meld: canastaOfSevens,
+  const { s, top } = pileOntoMeld({
+    meld: canastaOf(7),
     hand: [...mine, c(12, 'D'), c(8, 'H')],
   });
 
-  // Melds are one to a rank. With the canasta closed there is nowhere for
-  // another seven to go, however many are held, so the pile is not available.
   const check = canTakePile(s, 0);
-  no(check.ok, `the rank is shut: ${JSON.stringify(check)}`);
-  ok(check.reason.includes('closed'), check.reason);
+  ok(check.ok, `the cards are in hand, so the pile is fair game: ${JSON.stringify(check)}`);
+  eq(check.mode, 'pair', 'won by the hand rather than by the canasta');
+
+  const after = applyMove(s, {
+    type: 'takePile', by: 0, groups: [[...mine.map((x) => x.id), top.id]],
+  });
+  eq(after.teams[0].melds[7].length, 10, 'all three joined the canasta, for points');
+  eq(after.discard.length, 0, 'and the pile came across');
 });
 
-test('you cannot quietly add to a closed canasta by melding either', () => {
+test('a spare eight goes onto a finished canasta of eights, and scores', () => {
   const s = createGame({ seed: 82 });
-  s.teams[0].melds = { 8: [c(8, 'S'), c(8, 'H'), c(8, 'D'), c(8, 'C'), c(8, 'S'), c(8, 'H'), c(8, 'D')] };
+  s.teams[0].melds = { 8: canastaOf(8) };
   s.teams[0].hasMelded = true;
   const spare = c(8, 'C');
   s.players[0].hand = [spare, c(12, 'D'), c(11, 'S'), c(4, 'H')];
   s.turn = 0;
   s.phase = 'play';
 
-  let message = '';
-  try { applyMove(s, { type: 'meld', by: 0, groups: [{ to: 8, cards: [spare.id] }] }); }
-  catch (e) { message = e.message; }
-  ok(message.toLowerCase().includes('closed'), `expected the canasta to be closed, got: ${message}`);
+  const after = applyMove(s, { type: 'meld', by: 0, groups: [{ to: 8, cards: [spare.id] }] });
+  eq(after.teams[0].melds[8].length, 8, 'the eight joined the canasta');
+  eq(meldedValue(after.teams[0]), 80, 'and its ten points count');
 });

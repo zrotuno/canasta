@@ -116,8 +116,7 @@ function extendingPlan(state, seat) {
   const used = new Set();
 
   for (const [rankKey, meld] of Object.entries(team.melds)) {
-    // A finished canasta is closed, so there is nothing to add to it.
-    if (rankKey === 'B3' || isCanasta(meld)) continue;
+    if (rankKey === 'B3') continue;
     const rank = Number(rankKey);
     const matches = hand.filter((c) => c.rank === rank && isNatural(c) && !used.has(c.id));
     if (matches.length === 0) continue;
@@ -241,7 +240,8 @@ function pileGroups(state, seat) {
   const wilds = wildsOf(hand);
 
   let topGroup = null;
-  if (!state.frozen && team.melds[top.rank]) {
+  const ours = team.melds[top.rank];
+  if (!state.frozen && ours && !isCanasta(ours)) {
     topGroup = { to: top.rank, cards: [top.id] };
   } else if (naturals.length >= 2) {
     topGroup = { to: null, cards: [top.id, naturals[0].id, naturals[1].id] };
