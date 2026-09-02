@@ -456,6 +456,18 @@ function doTakePile(next, player, team, move) {
       made: canastasSince(team, canastasBefore),
     },
   });
+
+  // Taking the pile can empty the hand outright: a pile with nothing buried in
+  // it, melded away entirely along with the top card. Nothing was checking for
+  // that, so a player who did it had no card left to discard and no legal move
+  // at all -- the same wedge doMeld already guards against, reached a
+  // different way. This is also the route to a concealed hand: opening and
+  // going out in the same turn, on the strength of the pile you just took.
+  if (player.hand.length === 0) {
+    refuseIfDenied(next, player);
+    if (!canGoOut(next, team)) throw new Error(goingOutNeeds(next));
+    return endHand(next, player.id);
+  }
   return next;
 }
 

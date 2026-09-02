@@ -688,3 +688,46 @@ test('a spare eight goes onto a finished canasta of eights, and scores', () => {
   eq(after.teams[0].melds[8].length, 8, 'the eight joined the canasta');
   eq(meldedValue(after.teams[0]), 80, 'and its ten points count');
 });
+
+// ------------------------------- concealed, having taken the pile to open
+
+// Settled with the user: concealed pays whenever a side melds nothing before
+// its final turn and goes out that same turn -- taking the pile earlier in
+// that same turn, to build the winning meld, does not disqualify it. Only an
+// opening meld already on the table from an earlier turn does.
+//
+// Taking a pile that is nothing but the top card, and melding away the whole
+// hand along with it, turned out to have no going-out check at all: fixed
+// alongside this test, since this is exactly the shape that reaches it.
+test('going out concealed still pays when the pile was taken to open this turn', () => {
+  const s = createGame({ seed: 91 });
+  const top = c(9, 'D');
+  s.discard = [top];             // nothing buried: the pile is the top card alone
+  s.frozen = false;
+
+  const nines = [c(9, 'S'), c(9, 'H')];
+  const sevens = canastaOf(7);
+  const eights = canastaOf(8);
+  s.players[0].hand = [...nines, ...sevens, ...eights];
+  s.players[1].hand = [];
+  s.players[2].hand = [];
+  s.players[3].hand = [];
+  s.turn = 0;
+  s.phase = 'draw';
+
+  // The whole hand goes down in one move: three nines off the pile, and the
+  // two ready-made canastas needed to go out.
+  const out = applyMove(s, {
+    type: 'takePile', by: 0,
+    groups: [ids(...nines, top), ids(...sevens), ids(...eights)],
+  });
+
+  ok(out.handOver, 'taking the pile emptied the hand and ended it right there');
+  eq(out.outPlayer, 0);
+  ok(out.teams[0].hasMelded, 'the side opened');
+  eq(out.teams[0].melds[7].length, 7, 'sevens');
+  eq(out.teams[0].melds[8].length, 7, 'eights');
+
+  const mine = out.lastHandScores[0];
+  eq(mine.goOut, 200, 'concealed: opened and went out in the one turn, pile and all');
+});
