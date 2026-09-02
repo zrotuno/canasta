@@ -52,7 +52,7 @@ lose a trick, it stops the game on every device at once.
 
 ## Rules as implemented
 
-Two decks plus four jokers, 108 cards. Eleven cards each.
+Two decks plus four jokers, 108 cards. Thirteen cards each.
 
 | | |
 |---|---|

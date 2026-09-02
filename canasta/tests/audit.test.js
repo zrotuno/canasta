@@ -21,6 +21,7 @@ test('a red three buried in the discard pile is banked, not taken into hand', ()
   const top = c(5, 'D');
   s.discard = [redThree, c(9, 'C'), top];
   s.frozen = false;
+  s.teams[0].redThrees = [];     // a clean slate: only the pile's own three should count
   s.teams[0].hasMelded = true;   // past the opening minimum; not what this case is about
 
   const mine = [c(5, 'S'), c(5, 'C')];

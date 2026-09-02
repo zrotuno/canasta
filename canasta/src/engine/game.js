@@ -17,7 +17,9 @@ import {
 } from './melds.js';
 
 export const DEFAULT_CONFIG = {
-  handSize: 11,
+  // Dealt before the first draw or pile take. The house plays thirteen,
+  // against the classic eleven.
+  handSize: 13,
   // Decks in the pack, two jokers apiece. Two decks is the classic 108 cards.
   deckCount: 2,
   // Canastas a partnership needs before it may go out.

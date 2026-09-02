@@ -28,18 +28,26 @@ const census = (s) =>
     Object.values(t.melds).reduce((m, meld) => m + meld.length, 0), 0);
 
 // Puts a player in mid-turn with a chosen hand, so a rule can be aimed at.
+//
+// Red threes start cleared rather than however the seeded deal happened to
+// bank them: a bigger hand size once changed that incidental count and took
+// three scoring tests down with it, none of which were testing the deal.
+// A case that wants red threes sets them explicitly, which every one already
+// did, so clearing the default costs nothing real.
 function rig(mutate, opts) {
   const s = game(opts);
+  s.teams[0].redThrees = [];
+  s.teams[1].redThrees = [];
   mutate(s);
   return s;
 }
 
 // ------------------------------------------------------------ setup
 
-test('four hands of eleven, and a discard pile is started', () => {
+test('four full hands, and a discard pile is started', () => {
   const s = game();
   eq(s.players.length, 4);
-  for (const p of s.players) eq(p.hand.length, 11, 'hand size');
+  for (const p of s.players) eq(p.hand.length, s.config.handSize, 'hand size');
   ok(s.discard.length >= 1, 'a card was turned up');
   eq(s.phase, 'draw');
   eq(s.turn, 0);
@@ -87,13 +95,14 @@ test('you cannot draw twice in a turn', () => {
 });
 
 test('drawing then discarding passes the turn on', () => {
+  const dealt = game().config.handSize;
   let s = applyMove(game(), { type: 'draw' });
-  eq(s.players[0].hand.length, 13, 'drew two');
+  eq(s.players[0].hand.length, dealt + 2, 'drew two');
   s = applyMove(s, { type: 'discard', card: s.players[0].hand[0].id });
   eq(s.turn, 1, 'next player');
   eq(s.phase, 'draw');
   // Two in and one out, so a hand grows by a card every turn.
-  eq(s.players[0].hand.length, 12, 'up one on where it started');
+  eq(s.players[0].hand.length, dealt + 1, 'up one on where it started');
 });
 
 test('the deck is conserved across a full turn', () => {
