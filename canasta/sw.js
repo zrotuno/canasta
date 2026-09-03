@@ -3,7 +3,7 @@
 // Makes the game installable on Android and iOS home screens and lets it open
 // without a connection once visited. Bump CACHE when shipping, or phones will
 // keep serving the previous copy.
-const CACHE = 'canasta-v2';
+const CACHE = 'canasta-v3';
 
 const SHELL = [
   './',
@@ -44,9 +44,14 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || new URL(request.url).origin !== location.origin) return;
 
   // Network first so an update reaches players promptly, cache as the offline
-  // fallback.
+  // fallback. `fetch(request)` alone is not enough for that: it can be
+  // satisfied by the browser's own HTTP cache with no trip to the network at
+  // all, silently, for as long as GitHub Pages' Cache-Control says. A rebuilt
+  // request in 'reload' mode skips that layer and forces a real revalidation.
+  const fresh = new Request(request, { cache: 'reload' });
+
   event.respondWith(
-    fetch(request)
+    fetch(fresh)
       .then((response) => {
         const copy = response.clone();
         caches.open(CACHE).then((cache) => cache.put(request, copy));
