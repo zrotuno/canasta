@@ -91,6 +91,16 @@ function meldChip(rank, cards, { droppable }) {
   if (droppable) el.classList.add('droppable');
   el.dataset.meld = rank;
   const wilds = cards.filter(isWild).length;
+
+  // Red for as long as a meld is still natural, in the same ink a card face
+  // uses for a red suit: it can still become a 500-point canasta. The moment
+  // one wild joins it turns black, for the same 300-point ceiling as a hand
+  // that took the shortcut, and it can never turn red again -- a wild once
+  // laid is never taken back. Black threes are neither: only four of them
+  // exist, so a canasta of them is not a real possibility either colour would
+  // honestly represent.
+  if (rank !== 'B3') el.classList.add(wilds === 0 ? 'natural' : 'mixed');
+
   el.innerHTML = `<span>${rankName(rank)}</span>` +
     `<span class="count">${cards.length}${wilds ? ` · ${wilds}w` : ''}` +
     `${cards.length >= 7 ? ' · canasta' : ''}</span>`;

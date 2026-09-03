@@ -253,13 +253,24 @@
   .panel { background: rgba(0,0,0,.18); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 12px; }
   .panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin: 0 0 8px; }
 
+  /* A meld chip is a little card face: same paper, same two inks a real
+     card uses for a red or a black suit, carrying the same meaning here --
+     red for still-natural, black for a wild having joined it. The gold
+     border is a second, separate signal layered on top: whether the seven
+     cards for a canasta are actually down yet. */
   .meld {
     display: flex; align-items: center; gap: 6px; padding: 5px 9px;
-    background: rgba(255,255,255,.07); border: 1px solid var(--line); border-radius: 9px;
-    font-size: 13px; font-weight: 600; cursor: pointer;
+    background: var(--paper); border: 1px solid #d8d0ba; border-radius: 9px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    color: #6b6656;   /* black threes: neither ink honestly applies */
   }
-  .meld.canasta { border-color: var(--gold); background: rgba(216,165,58,.18); }
-  .meld .count { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .meld.natural { color: var(--ink); }
+  .meld.mixed { color: #16241d; }
+  .meld.canasta {
+    border-color: var(--gold);
+    background: linear-gradient(180deg, #fbf1d9, #f3dfa8);
+  }
+  .meld .count { color: currentColor; opacity: .62; font-weight: 600; font-size: 12px; }
   .meld.droppable { outline: 2px solid var(--gold); }
 
   .center { display: flex; gap: 14px; align-items: flex-start; }

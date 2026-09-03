@@ -91,6 +91,16 @@ The board marks this from the other side. A card in your hand whose rank the
 opposition has down, and has not yet made into a canasta, wears a **&lowast;**
 while the pile is unfrozen: throw it and the pile is theirs for nothing.
 
+On the table, a meld reads in red ink for as long as it stays natural and
+black the moment a wild joins it -- the same two inks a card face uses for a
+red or a black suit, carrying the same meaning here: red can still become a
+five-hundred-point canasta, black is capped at three hundred. Once a wild is
+laid it is never taken back, so black never turns red again. A completed
+canasta keeps its ink and gets a gold border besides, which is a separate
+question from whether it stayed natural. Black threes get neither colour:
+only four exist, so a canasta of them was never a real possibility for either
+ink to promise.
+
 **Drawing two.** A turn takes two cards from the stock rather than the classic
 one, and still ends in a single discard, so hands swell as the deal goes on and
 the stock empties twice as fast. Over a hundred and fifty self-played hands
